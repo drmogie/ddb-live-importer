@@ -4,26 +4,32 @@
     <li>{{localize "DDBLI.Step2"}}</li>
     <li>{{localize "DDBLI.Step3"}}</li>
     <li>{{localize "DDBLI.Step4"}}</li>
+    <li>{{localize "DDBLI.Step5"}}</li>
+    <li>{{localize "DDBLI.Step6"}}</li>
   </ol>
 
+  {{#if isConvert}}
+  <p class="ddbli-target">{{localize "DDBLI.ConvertingActor"}} <strong>{{actorName}}</strong></p>
+  {{/if}}
+
+  <button type="button" class="ddb-live-importer-open" data-action="open-ddb">
+    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+    {{localize "DDBLI.OpenDDB"}}
+  </button>
+
+  <div class="form-group ddbli-url">
+    <label>{{localize "DDBLI.UrlInputLabel"}}</label>
+    <input type="text" name="ddbUrl" value="{{savedId}}" placeholder="{{localize 'DDBLI.UrlInputPlaceholder'}}">
+  </div>
+
   <div class="ddbli-buttons">
-    <button type="button" data-action="open-ddb">
-      <i class="fa-solid fa-arrow-up-right-from-square"></i>
-      {{localize "DDBLI.OpenDDB"}}
+    <button type="button" data-action="open-json" disabled>
+      <i class="fa-solid fa-file-code"></i>
+      {{localize "DDBLI.GetJson"}}
     </button>
     <button type="button" data-action="paste">
       <i class="fa-solid fa-clipboard"></i>
       {{localize "DDBLI.PasteData"}}
     </button>
   </div>
-
-  <hr>
-
-  <p class="ddbli-setup">
-    <strong>{{localize "DDBLI.DialogTitle"}} - one-time setup:</strong><br>
-    Drag this to your bookmarks bar:
-    <a href="{{bookmarkletHref}}" class="ddbli-bookmarklet" onclick="return false;">DDB Import</a>
-  </p>
-
-  <p class="ddbli-note">{{localize "DDBLI.SecurityNote"}}</p>
 </form>

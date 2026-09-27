@@ -10,33 +10,35 @@ updates the existing one if a character with that name is already there.
 ## How it works
 
 Foundry can't talk to D&D Beyond's servers directly — different site, blocked
-by the browser for security. So instead:
+by the browser for security. So instead, everything happens through your own
+browser, logged in as you — no bookmarklet, nothing to drag:
 
+**New character:**
 1. In Foundry, click **Import from D&D Beyond** (Actor Directory, GM only).
 2. Click **Open D&D Beyond** — opens a real browser tab, already logged in as
    you.
 3. Pick your campaign, then the character you want.
-4. On that character's sheet page, click the **DDB Import** bookmarklet
-   (one-time setup below). It copies that character's data to your
-   clipboard.
-5. Back in Foundry, click **Paste Character Data**.
+4. Copy that character's link (or just the ID number in it) and paste it
+   into the box in Foundry.
+5. Click **Get Character JSON** — opens the raw character data in a plain
+   new tab (just a link, no script involved).
+6. On that page, press **Ctrl+A** then **Ctrl+C** to copy it all.
+7. Back in Foundry, click **Paste Character Data**.
 
 If an actor with that exact name already exists in your world, it's updated
 in place. Otherwise a new one is created.
 
-## One-time setup: the bookmarklet
-
-The importer dialog in Foundry has a **DDB Import** link — drag it to your
-browser's bookmarks bar. That's it, one time, ever.
-
-The bookmarklet only runs inside your own D&D Beyond browser tab, using your
-own login. It reads one character's data (the same request the page itself
-makes) and copies it to your clipboard. It doesn't send anything anywhere
-else. Source is in `scripts/ddb-bookmarklet.source.js` if you want to read
-or edit it before installing.
+**Re-syncing a character you already imported:**
+1. Right-click that actor in the Actor Directory.
+2. Pick **Convert to D&D Beyond Character**. The character ID box is already
+   filled in from last time.
+3. Click **Get Character JSON**, copy it (Ctrl+A, Ctrl+C), come back and
+   click **Paste Character Data**. That one actor is updated, no name
+   matching needed.
 
 ## Changelog
 
+- **2026.09.27.3** — Dropped the bookmarklet entirely (dragging it to the bookmarks bar wasn't working reliably). Replaced it with a plain "paste the character's URL or ID, then open+copy its JSON" flow — no script ever runs on D&D Beyond's page. Added a right-click **Convert to D&D Beyond Character** option on existing actors, which remembers the character ID for a quick re-sync next time.
 - **2026.09.27.2** — Fixed the "Import from D&D Beyond" button never appearing in the Actor Directory. Foundry v13+ changed core Applications to a new framework (ApplicationV2) that hands modules a plain HTML element instead of the old jQuery object; the button code was still using the jQuery-only `.find()`, which threw an error every time (visible in the browser console as `html.find is not a function`) before the button could be added. Rewritten against the current ApplicationV2 API.
 - **2026.09.27.1** — Initial version.
 
@@ -79,7 +81,6 @@ scratch.
    `Data/modules/` folder.
 2. Restart Foundry (or reload), enable **D&D Beyond Live Importer** in your
    world's module settings.
-3. Do the bookmarklet setup above once.
 
 ## Versioning
 

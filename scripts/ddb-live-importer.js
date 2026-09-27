@@ -3,17 +3,24 @@
  * ---------------------------------------------------------------------------
  * Standalone GM tool. No other modules required, no saved API token.
  *
- * Flow:
- *   1. GM clicks "Import from D&D Beyond" in the Actor Directory.
- *   2. Dialog opens; "Open D&D Beyond" launches a real browser tab/window to
- *      the GM's own (already logged in) D&D Beyond account.
- *   3. GM picks their campaign, then a character, then clicks the DDB Import
- *      bookmarklet on that character's page. The bookmarklet fetches the
- *      character JSON (using the GM's own D&D Beyond session, same as the
- *      page itself does) and copies it to the clipboard.
- *   4. Back in Foundry, GM clicks "Paste Character Data." This module reads
+ * Flow (no bookmarklet, no dragging):
+ *   1. GM clicks "Import from D&D Beyond" (Actor Directory footer) for a
+ *      brand new character, OR right-clicks an existing actor and picks
+ *      "Convert to D&D Beyond Character" to re-sync one that already exists.
+ *   2. Dialog opens; "Open D&D Beyond" launches a real browser tab to the
+ *      GM's own (already logged in) D&D Beyond account.
+ *   3. GM picks their campaign, then a character, then pastes that
+ *      character's URL (or just the ID number) into the box.
+ *   4. "Get Character JSON" opens the raw character data in a new tab (a
+ *      plain link — no script runs on D&D Beyond's page at all).
+ *   5. GM selects all (Ctrl+A) and copies (Ctrl+C) on that page.
+ *   6. Back in Foundry, GM clicks "Paste Character Data." This module reads
  *      the clipboard, maps the data (see ddb-mapper.js), and either creates
- *      a new actor or updates an existing one matched by name.
+ *      a new actor, updates the actor being converted, or updates an
+ *      existing actor matched by name.
+ *
+ * The character ID is saved on the actor afterward, so next time it's
+ * pre-filled automatically for a quick re-sync.
  * ---------------------------------------------------------------------------
  */
 
@@ -21,39 +28,16 @@ import { mapDdbCharacterToActor } from "./ddb-mapper.js";
 
 const MODULE_ID = "ddb-live-importer";
 const DDB_CAMPAIGNS_URL = "https://www.dndbeyond.com/my-campaigns";
+const DDB_CHARACTER_JSON_BASE = "https://character-service.dndbeyond.com/character/v5/character/";
 
-/** The bookmarklet source, kept human-readable here and minified on demand. */
-const BOOKMARKLET_SOURCE = `
-(function () {
-  var m = location.pathname.match(/\\/characters\\/(\\d+)/);
-  if (!m) {
-    alert("DDB Import: open a character's sheet page first, then click this bookmark.");
-    return;
-  }
-  var id = m[1];
-  fetch("https://character-service.dndbeyond.com/character/v5/character/" + id, {
-    credentials: "include"
-  })
-    .then(function (r) {
-      if (!r.ok) throw new Error("D&D Beyond returned " + r.status);
-      return r.json();
-    })
-    .then(function (json) {
-      var text = JSON.stringify(json);
-      return navigator.clipboard.writeText(text).then(function () { return json; });
-    })
-    .then(function (json) {
-      var name = (json && json.data && json.data.name) || "Character";
-      alert("DDB Import: copied " + name + ". Switch to Foundry and click \\"Paste Character Data.\\"");
-    })
-    .catch(function (err) {
-      alert("DDB Import failed: " + err.message);
-    });
-})();
-`.trim();
-
-function bookmarkletHref() {
-  return "javascript:" + encodeURIComponent(BOOKMARKLET_SOURCE);
+/** Pull a D&D Beyond character ID out of a pasted URL or a bare number. */
+function parseCharacterId(input) {
+  if (!input) return null;
+  const trimmed = String(input).trim();
+  const urlMatch = trimmed.match(/\/characters\/(\d+)/);
+  if (urlMatch) return urlMatch[1];
+  const digitsMatch = trimmed.match(/(\d{4,})/);
+  return digitsMatch ? digitsMatch[1] : null;
 }
 
 function findExistingActor(name) {
@@ -82,11 +66,20 @@ async function readClipboardCharacter() {
   return json;
 }
 
+/** Replace an actor's class/gear items with a freshly mapped set. */
+async function replaceItems(actor, items) {
+  await actor.deleteEmbeddedDocuments(
+    "Item",
+    actor.items.filter(i => ["class", "weapon", "equipment", "consumable", "loot"].includes(i.type)).map(i => i.id)
+  );
+  await actor.createEmbeddedDocuments("Item", items);
+}
+
+/** Create a new actor, or update one matched by name, from clipboard data. */
 async function importFromClipboard() {
   const raw = await readClipboardCharacter();
   const { actorData, items, raw: ddbData } = mapDdbCharacterToActor(raw);
 
-  // Full raw D&D Beyond JSON, for you to inspect/extend the mapper with.
   console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
   console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
 
@@ -94,11 +87,7 @@ async function importFromClipboard() {
 
   if (existing) {
     await existing.update(actorData);
-    await existing.deleteEmbeddedDocuments(
-      "Item",
-      existing.items.filter(i => ["class", "weapon", "equipment", "consumable", "loot"].includes(i.type)).map(i => i.id)
-    );
-    await existing.createEmbeddedDocuments("Item", items);
+    await replaceItems(existing, items);
     ui.notifications.info(game.i18n.format("DDBLI.ImportUpdated", { name: actorData.name }));
     existing.sheet.render(true);
   } else {
@@ -107,6 +96,20 @@ async function importFromClipboard() {
     ui.notifications.info(game.i18n.format("DDBLI.ImportCreated", { name: actorData.name }));
     actor.sheet.render(true);
   }
+}
+
+/** Convert/re-sync one specific actor (from the right-click menu) from clipboard data. */
+async function convertActorFromClipboard(actor) {
+  const raw = await readClipboardCharacter();
+  const { actorData, items, raw: ddbData } = mapDdbCharacterToActor(raw);
+
+  console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
+  console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
+
+  await actor.update(actorData);
+  await replaceItems(actor, items);
+  ui.notifications.info(game.i18n.format("DDBLI.ImportUpdated", { name: actorData.name }));
+  actor.sheet.render(true);
 }
 
 // Foundry v13+ moved core Applications (including ActorDirectory and the
@@ -118,6 +121,13 @@ async function importFromClipboard() {
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
+  /** @param {Actor|null} targetActor - when set, this dialog re-syncs that specific actor instead of creating/matching by name. */
+  constructor(targetActor = null, options = {}) {
+    super(options);
+    this.targetActor = targetActor;
+    this.characterId = targetActor?.getFlag(MODULE_ID, "ddbCharacterId") ?? null;
+  }
+
   static DEFAULT_OPTIONS = {
     id: "ddb-live-importer-dialog",
     classes: ["ddb-live-importer"],
@@ -129,6 +139,7 @@ class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     position: { width: 480, height: "auto" },
     actions: {
       "open-ddb": DDBImportDialog.#onOpenDDB,
+      "open-json": DDBImportDialog.#onOpenJson,
       paste: DDBImportDialog.#onPaste
     }
   };
@@ -137,18 +148,51 @@ class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     body: { template: `modules/${MODULE_ID}/templates/import-dialog.html` }
   };
 
+  get title() {
+    return this.targetActor
+      ? game.i18n.format("DDBLI.ConvertDialogTitle", { name: this.targetActor.name })
+      : game.i18n.localize("DDBLI.DialogTitle");
+  }
+
   async _prepareContext(_options) {
-    return { bookmarkletHref: bookmarkletHref() };
+    return {
+      isConvert: !!this.targetActor,
+      actorName: this.targetActor?.name ?? "",
+      savedId: this.characterId ?? ""
+    };
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    const input = this.element.querySelector('input[name="ddbUrl"]');
+    const jsonBtn = this.element.querySelector('[data-action="open-json"]');
+    if (!input || !jsonBtn) return;
+
+    const sync = () => {
+      this.characterId = parseCharacterId(input.value);
+      jsonBtn.disabled = !this.characterId;
+    };
+    input.addEventListener("input", sync);
+    sync();
   }
 
   static #onOpenDDB() {
     window.open(DDB_CAMPAIGNS_URL, "_blank", "noopener");
   }
 
+  static #onOpenJson() {
+    if (!this.characterId) return;
+    window.open(`${DDB_CHARACTER_JSON_BASE}${this.characterId}`, "_blank", "noopener");
+  }
+
   static async #onPaste(_event, target) {
     target.disabled = true;
     try {
-      await importFromClipboard();
+      if (this.targetActor) {
+        await convertActorFromClipboard(this.targetActor);
+      } else {
+        await importFromClipboard();
+      }
       this.close();
     } catch (err) {
       ui.notifications.error(err.message);
@@ -159,6 +203,8 @@ class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
+// Footer button in the Actor Directory: create a new actor or update one
+// matched by name.
 Hooks.on("renderActorDirectory", (app, html) => {
   try {
     if (!game.user.isGM) return;
@@ -180,4 +226,32 @@ Hooks.on("renderActorDirectory", (app, html) => {
     // Fail loud in the console instead of silently never adding the button.
     console.error(`${MODULE_ID} | failed to add the Import button`, err);
   }
+});
+
+// Right-click an existing actor -> "Convert to D&D Beyond Character" to
+// re-sync that specific actor (no name-matching needed, and the character
+// ID is remembered on it for next time).
+function liElement(li) {
+  return li instanceof HTMLElement ? li : li?.[0] ?? null;
+}
+
+function liEntryId(li) {
+  const el = liElement(li);
+  return el?.dataset?.entryId ?? el?.dataset?.documentId ?? el?.getAttribute?.("data-entry-id") ?? null;
+}
+
+Hooks.on("getActorDirectoryEntryContext", (_html, entryOptions) => {
+  entryOptions.push({
+    name: "DDBLI.ContextConvert",
+    icon: '<i class="fa-solid fa-dice-d20"></i>',
+    condition: li => {
+      if (!game.user.isGM) return false;
+      const actor = game.actors.get(liEntryId(li));
+      return actor?.type === "character";
+    },
+    callback: li => {
+      const actor = game.actors.get(liEntryId(li));
+      if (actor) new DDBImportDialog(actor).render(true);
+    }
+  });
 });

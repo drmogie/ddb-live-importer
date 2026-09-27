@@ -2,7 +2,7 @@
   "id": "ddb-live-importer",
   "title": "D&D Beyond Live Importer",
   "description": "Standalone GM tool. Opens a live, already-logged-in D&D Beyond browser tab, lets you pick a campaign and character, and imports or updates that character as a Foundry actor. No other modules required, no saved token.",
-  "version": "2026.09.27.2",
+  "version": "2026.09.27.3",
   "authors": [
     {
       "name": "DrMogie"
