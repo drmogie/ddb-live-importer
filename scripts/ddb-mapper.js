@@ -127,6 +127,76 @@ function effectiveAbilityScores(data) {
   return scores;
 }
 
+/**
+ * DDB skill-modifier subType -> dnd5e skill key. CONFIRMED against Po Tato's
+ * `data.modifiers` on 2026-09-27 -- skill proficiencies show up as
+ * `{type:"proficiency", subType:"<this key>"}` entries in the same flat
+ * per-source buckets used for ability scores above.
+ */
+const SKILL_SUBTYPE_TO_KEY = {
+  acrobatics: "acr",
+  "animal-handling": "ani",
+  arcana: "arc",
+  athletics: "ath",
+  deception: "dec",
+  history: "his",
+  insight: "ins",
+  intimidation: "itm",
+  investigation: "inv",
+  medicine: "med",
+  nature: "nat",
+  perception: "prc",
+  performance: "prf",
+  persuasion: "per",
+  religion: "rel",
+  "sleight-of-hand": "slt",
+  stealth: "ste",
+  survival: "sur"
+};
+
+/** "constitution-saving-throws" -> "con", etc. */
+function saveAbilityForSubType(subType) {
+  const m = subType?.match(/^(strength|dexterity|constitution|intelligence|wisdom|charisma)-saving-throws$/);
+  if (!m) return null;
+  const map = { strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha" };
+  return map[m[1]];
+}
+
+/**
+ * Skill and saving-throw proficiency checkboxes. Scans every `data.modifiers`
+ * bucket (not just race/class/background/feat -- item modifiers can grant
+ * proficiencies too, e.g. a set of thieves' tools proficiency from a magic
+ * item) for `proficiency`/`expertise` entries, same `isGranted !== false`
+ * filter as effectiveAbilityScores() above (unchosen DDB options are listed
+ * with `isGranted: false` and must be skipped). `expertise` -> skill value 2,
+ * `proficiency` -> skill value 1 (dnd5e: 0 none, 1 proficient, 2 expertise);
+ * for saves dnd5e only has proficient 0/1, no expertise, so any hit sets 1.
+ * BEST EFFORT: an "expertise" subType was never seen on Po Tato's own data
+ * (he has none), so that string is assumed, not confirmed live.
+ */
+function buildSkillsAndSaves(data) {
+  const skills = {};
+  const saves = {};
+  const allMods = Object.values(data.modifiers ?? {}).flat();
+
+  for (const mod of allMods) {
+    if (mod.isGranted === false) continue;
+    if (mod.type !== "proficiency" && mod.type !== "expertise") continue;
+
+    const skillKey = SKILL_SUBTYPE_TO_KEY[mod.subType];
+    if (skillKey) {
+      const value = mod.type === "expertise" ? 2 : 1;
+      skills[skillKey] = Math.max(skills[skillKey] ?? 0, value);
+      continue;
+    }
+
+    const saveAbility = saveAbilityForSubType(mod.subType);
+    if (saveAbility) saves[saveAbility] = 1;
+  }
+
+  return { skills, saves };
+}
+
 /** Total character level across all classes. */
 function totalLevel(data) {
   return (data.classes ?? []).reduce((sum, c) => sum + (c.level ?? 0), 0);
@@ -136,13 +206,6 @@ function totalLevel(data) {
  * Max HP. Confirmed formula against Po Tato:
  *   baseHitPoints (52) + conMod (3) * totalLevel (8) = 76, matches the sheet.
  * overrideHitPoints, when set, wins outright.
- *
- * NOTE: this is still computed here, not by Foundry. Checked live on
- * 2026-09-27: unlike AC, dnd5e does NOT derive hp.max on its own from hit
- * dice + CON for an already-built character -- it's a stored field, only
- * ever computed interactively by the level-up wizard as you add levels one
- * at a time. So there's no data-only way to hand this one off; getting CON
- * right (see the KNOWN GAP above) is what actually fixes HP.
  */
 function computeMaxHP(data, conScore) {
   if (typeof data.overrideHitPoints === "number") return data.overrideHitPoints;
@@ -205,13 +268,7 @@ function guessItemType(def) {
   return "loot"; // matches DDB's "Other Gear" -- correct for mundane adventuring gear.
 }
 
-/**
- * Very light equipment pass-through: name, quantity, equipped, weight.
- * This is a FALLBACK now -- ddb-live-importer.js tries to swap each of
- * these for the real item from a Foundry compendium first (proper damage,
- * AC, properties, etc.), and only keeps this basic version when nothing
- * matches (typically homebrew content).
- */
+/** Very light equipment pass-through: name, quantity, equipped, weight. */
 function buildGearItems(data) {
   return (data.inventory ?? []).map(i => {
     const def = i.definition ?? {};
@@ -231,6 +288,171 @@ function buildGearItems(data) {
       }
     };
   });
+}
+
+/**
+ * D&D Beyond spell `definition.school` full name -> dnd5e school code.
+ * CONFIRMED live against Foundry's own CONFIG.DND5E.spellSchools on
+ * 2026-09-27 -- the 8 schools are a stable D&D concept, safe to hardcode.
+ */
+const SCHOOL_NAME_TO_KEY = {
+  abjuration: "abj",
+  conjuration: "con",
+  divination: "div",
+  enchantment: "enc",
+  evocation: "evo",
+  illusion: "ill",
+  necromancy: "nec",
+  transmutation: "trs"
+};
+
+/**
+ * Which D&D Beyond spell bucket -> which dnd5e casting "method". `class`
+ * entries come from `data.classSpells[].spells` (spells chosen off a caster
+ * class's known/prepared list) and get the normal "spell" method; every
+ * other bucket (race/background/item/feat) is always an innate grant in DDB,
+ * matching dnd5e's "innate" method. CONFIRMED for the `feat` bucket against
+ * Po Tato's real "Comprehend Languages" (from Fey Touched) on 2026-09-27;
+ * the others follow the same DDB pattern but weren't separately verified
+ * since Po Tato has none of them populated.
+ */
+const SPELL_METHOD_BY_SOURCE = {
+  class: "spell",
+  race: "innate",
+  background: "innate",
+  item: "innate",
+  feat: "innate"
+};
+
+/**
+ * DDB `limitedUse.resetType` -> dnd5e recovery period. CONFIRMED for `2`
+ * (Long Rest) against Po Tato's real "Comprehend Languages" entry, matching
+ * Fey Touched's actual rules text. `1` (Short Rest) is inferred from DDB's
+ * common short=1/long=2 enum ordering seen elsewhere in this API but was NOT
+ * directly confirmed this session -- if an imported spell's uses don't reset
+ * on the expected rest, check the console log's raw limitedUse and adjust.
+ */
+const RESET_TYPE_TO_PERIOD = { 1: "sr", 2: "lr" };
+
+/** Foundry dnd5e `system.uses` for a spell item, from a DDB entry-level `limitedUse` object. Returns undefined (unlimited use) when DDB has none. */
+function buildSpellUses(limitedUse) {
+  if (!limitedUse || !limitedUse.maxUses) return undefined;
+  const period = RESET_TYPE_TO_PERIOD[limitedUse.resetType];
+  return {
+    max: String(limitedUse.maxUses),
+    recovery: period ? [{ period, type: "recoverAll" }] : []
+  };
+}
+
+/**
+ * Every spell D&D Beyond has granted the character, from every source, deduped
+ * by name (first occurrence wins -- a spell granted twice, e.g. by both a
+ * class list and a feat, only needs one Item). CONFIRMED shape on
+ * 2026-09-27: `data.classSpells[]` is one entry per class with a `spells[]`
+ * array (empty for a non-caster like Po Tato); `data.spells` is an object
+ * with `race`/`class`/`background`/`item`/`feat` bucket arrays. Every entry
+ * in every bucket has the SAME shape: `{definition: {...}, limitedUse: {...}
+ * | null, ...}` (entry-level `limitedUse`, not nested under `definition`).
+ */
+function collectDdbSpellEntries(data) {
+  const seen = new Set();
+  const buckets = [
+    ...(data.classSpells ?? []).flatMap(cs => (cs.spells ?? []).map(entry => ({ entry, source: "class" }))),
+    ...["race", "background", "item", "feat"].flatMap(source =>
+      (data.spells?.[source] ?? []).map(entry => ({ entry, source }))
+    )
+  ];
+
+  const out = [];
+  for (const { entry, source } of buckets) {
+    const name = entry.definition?.name;
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ entry, source });
+  }
+  return out;
+}
+
+/** Basic guessed spell Items, before ddb-live-importer.js swaps them for real compendium spells where a name matches. */
+function buildSpellItems(data) {
+  return collectDdbSpellEntries(data).map(({ entry, source }) => {
+    const def = entry.definition ?? {};
+    return {
+      name: def.name ?? "Unknown Spell",
+      type: "spell",
+      system: {
+        description: { value: def.description ?? "" },
+        level: def.level ?? 0,
+        school: SCHOOL_NAME_TO_KEY[(def.school ?? "").toLowerCase()] ?? "",
+        method: SPELL_METHOD_BY_SOURCE[source] ?? "spell",
+        prepared: 1,
+        uses: buildSpellUses(entry.limitedUse)
+      }
+    };
+  });
+}
+
+/**
+ * Feats, class features, and the background feature, as Foundry "feat"-type
+ * Items. Built directly from D&D Beyond's own name + description rather
+ * than compendium-matched by ddb-live-importer.js's usual lookup, because
+ * DDB's `definition.limitedUse` here is a flat per-level uses TABLE
+ * (`[{level, uses}, ...]`) with no reset-period field at all -- unlike the
+ * richer entry-level `limitedUse` object spells get (see buildSpellUses
+ * above) -- so there is no reliable way to compute Foundry's `uses.recovery`
+ * for these. KNOWN GAP: imported feats/class-features/the background
+ * feature have no automatic limited-use tracking (e.g. Second Wind won't
+ * count down on its own) -- check the console log's raw `classFeatures`/
+ * `feats` if you need those numbers and set them by hand on the Item.
+ */
+function buildFeatureItem(def, typeValue) {
+  return {
+    name: def.name ?? "Feature",
+    type: "feat",
+    system: {
+      description: { value: def.description ?? def.snippet ?? "" },
+      requirements: def.requiredLevel ? `Level ${def.requiredLevel}` : "",
+      type: { value: typeValue, subtype: "" }
+    }
+  };
+}
+
+/**
+ * CONFIRMED shapes on 2026-09-27, all against Po Tato:
+ * `data.classes[].classFeatures[]` = `{definition: {...}, levelScale}` (31
+ * entries for his Fighter 8, some with `definition.hideInSheet: true` --
+ * those are skipped, they're not meant to show as a separate feature);
+ * `data.feats[]` = `{definition: {...}, componentId, componentTypeId}` (his
+ * 7 feats); `data.background.definition.featureName` +
+ * `.featureDescription` is the single background feature (Po Tato's
+ * "Rune Carver" background).
+ */
+function buildFeatureItems(data) {
+  const items = [];
+
+  for (const cls of data.classes ?? []) {
+    for (const cf of cls.classFeatures ?? []) {
+      const def = cf.definition;
+      if (!def || def.hideInSheet) continue;
+      items.push(buildFeatureItem(def, "class"));
+    }
+  }
+
+  for (const feat of data.feats ?? []) {
+    if (feat.definition) items.push(buildFeatureItem(feat.definition, "feat"));
+  }
+
+  const bgName = data.background?.definition?.featureName;
+  if (bgName) {
+    items.push(buildFeatureItem(
+      { name: bgName, description: data.background.definition.featureDescription },
+      "background"
+    ));
+  }
+
+  return items;
 }
 
 function buildBiography(data) {
@@ -258,9 +480,17 @@ export function mapDdbCharacterToActor(ddbResponse) {
   const speed = data.race?.weightSpeeds?.normal ?? { walk: 30 };
   const size = SIZE_ID_MAP[data.race?.sizeId] ?? "med";
 
+  const { skills: skillProfs, saves: saveProfs } = buildSkillsAndSaves(data);
+
   const abilities = {};
   for (const key of ABILITY_ORDER) {
     abilities[key] = { value: scores[key] };
+    if (saveProfs[key]) abilities[key].proficient = saveProfs[key];
+  }
+
+  const skills = {};
+  for (const [key, value] of Object.entries(skillProfs)) {
+    skills[key] = { value };
   }
 
   const actorData = {
@@ -269,6 +499,7 @@ export function mapDdbCharacterToActor(ddbResponse) {
     img: data.decorations?.avatarUrl || undefined,
     system: {
       abilities,
+      skills,
       attributes: {
         hp: {
           value: maxHP - (data.removedHitPoints ?? 0),
@@ -318,7 +549,12 @@ export function mapDdbCharacterToActor(ddbResponse) {
     }
   };
 
-  const items = [...buildClassItems(data), ...buildGearItems(data)];
+  const items = [
+    ...buildClassItems(data),
+    ...buildGearItems(data),
+    ...buildSpellItems(data),
+    ...buildFeatureItems(data)
+  ];
 
   return { actorData, items, raw: data };
 }

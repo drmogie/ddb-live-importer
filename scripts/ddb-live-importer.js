@@ -61,6 +61,37 @@ const ITEM_COMPENDIUM_IDS = [
   "dnd5e.equipment24" // 2024-rules equipment
 ];
 
+/**
+ * Spell compendiums to search for a real match, same priority pattern as
+ * ITEM_COMPENDIUM_IDS above. This world's own "ddb-spells" pack is DDB's own
+ * synced content, so it's checked first.
+ */
+const SPELL_COMPENDIUM_IDS = [
+  "world.ddb-underground-playground-ddb-spells",
+  "dnd5e.spells",
+  "dnd5e.spells24"
+];
+
+/**
+ * Feat / class-feature compendiums to search for a real match. This world's
+ * own "ddb-feats" pack (DDB's own synced content) is checked first, so most
+ * of Po Tato's real feats (Charger, Great Weapon Fighting, Polearm Master,
+ * etc.) matched here on 2026-09-27 and pulled in their actual Foundry
+ * mechanics (active effects) instead of a plain description-only item.
+ * "classfeatures" covers core class features (Second Wind, Action Surge).
+ */
+const FEAT_COMPENDIUM_IDS = [
+  "world.ddb-underground-playground-ddb-feats",
+  "dnd5e.classfeatures",
+  "dnd5e.feats24"
+];
+
+/** Item type -> which compendium list to search. Falls back to ITEM_COMPENDIUM_IDS (gear) for anything not listed here. */
+const COMPENDIUM_IDS_BY_TYPE = {
+  spell: SPELL_COMPENDIUM_IDS,
+  feat: FEAT_COMPENDIUM_IDS
+};
+
 function normalizeItemName(name) {
   return (name ?? "")
     .toLowerCase()
@@ -69,13 +100,14 @@ function normalizeItemName(name) {
     .trim();
 }
 
-let _itemIndexCache = null;
+const _compendiumIndexCache = new Map();
 
-/** Builds (once) a flat, normalized index across all the compendiums above. */
-async function getItemCompendiumIndex() {
-  if (_itemIndexCache) return _itemIndexCache;
+/** Builds (once per distinct pack list) a flat, normalized index across the given compendiums. */
+async function getCompendiumIndex(packIds) {
+  const cacheKey = packIds.join("|");
+  if (_compendiumIndexCache.has(cacheKey)) return _compendiumIndexCache.get(cacheKey);
   const entries = [];
-  for (const packId of ITEM_COMPENDIUM_IDS) {
+  for (const packId of packIds) {
     const pack = game.packs.get(packId);
     if (!pack) continue;
     await pack.getIndex();
@@ -83,7 +115,7 @@ async function getItemCompendiumIndex() {
       entries.push({ pack, entry, normalized: normalizeItemName(entry.name) });
     }
   }
-  _itemIndexCache = entries;
+  _compendiumIndexCache.set(cacheKey, entries);
   return entries;
 }
 
@@ -121,8 +153,8 @@ function candidateNames(name) {
  * pass comes up empty, and it takes whichever compendium is highest
  * priority (the index is already built in that order).
  */
-async function findCompendiumItem(name) {
-  const index = await getItemCompendiumIndex();
+async function findCompendiumItem(name, packIds) {
+  const index = await getCompendiumIndex(packIds);
 
   for (const candidate of candidateNames(name)) {
     const target = normalizeItemName(candidate);
@@ -140,11 +172,14 @@ async function findCompendiumItem(name) {
 }
 
 /**
- * Swaps our basic guessed items for the real compendium item wherever one
- * matches by name, keeping only the character-specific bits (quantity,
- * equipped, attuned) from what ddb-mapper.js built. Falls back to the basic
- * item when nothing matches (typically homebrew content). Class items are
- * left alone -- they're not in an item compendium.
+ * Swaps our basic guessed items (gear, spells, feats/class-features) for the
+ * real compendium item wherever one matches by name -- gear keeps only its
+ * character-specific bits (quantity, equipped, attuned) from what
+ * ddb-mapper.js built; spells keep their character-specific casting bits
+ * (prepared, method, uses) since a generic compendium spell doesn't know
+ * whether THIS character has it as an innate grant with limited uses. Falls
+ * back to the basic item when nothing matches (typically homebrew content).
+ * Class items are left alone -- they're not in an item compendium.
  */
 async function resolveItemsAgainstCompendiums(items) {
   const resolved = [];
@@ -153,7 +188,8 @@ async function resolveItemsAgainstCompendiums(items) {
       resolved.push(basic);
       continue;
     }
-    const match = await findCompendiumItem(basic.name);
+    const packIds = COMPENDIUM_IDS_BY_TYPE[basic.type] ?? ITEM_COMPENDIUM_IDS;
+    const match = await findCompendiumItem(basic.name, packIds);
     if (!match) {
       resolved.push(basic);
       continue;
@@ -161,9 +197,15 @@ async function resolveItemsAgainstCompendiums(items) {
     const doc = await match.pack.getDocument(match.entry._id);
     const data = doc.toObject();
     delete data._id;
-    data.system.quantity = basic.system.quantity;
-    data.system.equipped = basic.system.equipped;
-    if ("attuned" in data.system) data.system.attuned = basic.system.attuned;
+    if (basic.type === "spell") {
+      data.system.prepared = basic.system.prepared;
+      data.system.method = basic.system.method;
+      if (basic.system.uses) data.system.uses = basic.system.uses;
+    } else if (basic.type !== "feat") {
+      data.system.quantity = basic.system.quantity;
+      data.system.equipped = basic.system.equipped;
+      if ("attuned" in data.system) data.system.attuned = basic.system.attuned;
+    }
     resolved.push(data);
   }
   return resolved;
@@ -192,17 +234,19 @@ function parseCharacterJson(text) {
   }
 }
 
-// Every non-class item type this module might create, so a re-sync clears
-// out the old set cleanly -- including "tool"/"container", which only show
-// up once a real compendium item (e.g. a Backpack) replaces our old "loot"
-// guess for it.
-const GEAR_ITEM_TYPES = ["weapon", "equipment", "consumable", "loot", "tool", "container"];
+// Every item type this module might create, so a re-sync clears out the old
+// set cleanly before creating the freshly mapped one -- including
+// "tool"/"container", which only show up once a real compendium item (e.g.
+// a Backpack) replaces our old "loot" guess for it, and "class"/"spell"/
+// "feat", so re-syncing doesn't pile up duplicate class levels, spells, or
+// feats/features every time (a class item was previously never cleared).
+const SYNCED_ITEM_TYPES = ["weapon", "equipment", "consumable", "loot", "tool", "container", "class", "spell", "feat"];
 
-/** Replace an actor's class/gear items with a freshly mapped set. */
+/** Replace an actor's class/gear/spell/feat items with a freshly mapped set. */
 async function replaceItems(actor, items) {
   await actor.deleteEmbeddedDocuments(
     "Item",
-    actor.items.filter(i => GEAR_ITEM_TYPES.includes(i.type)).map(i => i.id)
+    actor.items.filter(i => SYNCED_ITEM_TYPES.includes(i.type)).map(i => i.id)
   );
   await actor.createEmbeddedDocuments("Item", items);
 }

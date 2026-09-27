@@ -40,6 +40,28 @@ in place. Otherwise a new one is created.
 
 ## Changelog
 
+- **2026.09.27.9** -- Added the last 3 items from "Not built yet": spells,
+  feats/class features/background feature as real Items, and skill/saving
+  throw proficiency checkboxes.
+  - **Spells** -- every spell D&D Beyond has granted (class spell lists,
+    plus innate grants from race/background/magic items/feats) is now
+    imported, matched against your spell compendiums the same way gear is.
+    An innate grant with limited uses (like a feat's "cast once per long
+    rest") carries its uses and recovery period over correctly.
+  - **Feats, class features, and your background feature** are now
+    imported as real Items too, matched against your feat/class-feature
+    compendiums where D&D Beyond's name lines up with one (this world's
+    own D&D Beyond-synced feat pack matched almost everything). See "Known
+    limitation" below -- these don't carry automatic limited-use tracking
+    (e.g. Second Wind won't count itself down).
+  - **Skill and saving-throw proficiency checkboxes** are now set from D&D
+    Beyond's data, including expertise (double proficiency) where it
+    applies.
+  - Re-syncing an existing character now also clears out its old spells,
+    feats/features, and class item before creating the fresh set, so
+    re-syncing repeatedly no longer piles up duplicates (this was a
+    pre-existing gap for class items specifically -- re-syncing before this
+    fix could leave a character with multiple stacked class levels).
 - **2026.09.27.8** -- Fixed "Convert to D&D Beyond Character" not showing
   up on right-click. This world runs Foundry v14, which quietly changed how
   the Actor Directory's right-click menu is built: it no longer listens for
@@ -113,6 +135,12 @@ Confirmed working, from a real character export:
 - Inventory as real Foundry items where a compendium match is found
   (correct damage, armor, properties, magic items included), otherwise a
   basic gear item as a fallback
+- Spells (class spell lists + innate grants from race/background/item/feat),
+  matched against your spell compendiums the same way inventory items are
+- Feats, class features, and your background feature, as real Items
+  (matched against your feat/class-feature compendiums where a name lines
+  up, otherwise a basic description-only Item)
+- Skill and saving-throw proficiency checkboxes, including expertise
 
 **Best-effort, check it after import:**
 - Hit point max -- see "Known limitation" below; can come out a couple
@@ -123,9 +151,11 @@ Confirmed working, from a real character export:
   by name (see above) and fall back to a basic guessed item
 
 **Not built yet:**
-- Spells
-- Feats and class features as their own Items
-- Skills / saving-throw proficiency checkboxes
+- Species/racial traits as their own Items (only feats, class features,
+  and the background feature are, for now)
+- Automatic limited-use tracking on imported feats/class features (a
+  class feature like Second Wind imports fine, but won't count its own
+  uses down -- see "Known limitation" below)
 
 **Known limitation -- HP max is still computed by this module, not
 Foundry.** AC (as of 2026.09.27.6) is handed off to Foundry's own
@@ -138,6 +168,13 @@ right -- D&D Beyond lists every possible Ability Score Increase choice for
 a race/feat, not just the one actually picked, which can make CON (and so
 HP) come out 1-2 low. Every import prints D&D Beyond's raw `modifiers` data
 to the console so this can be tracked down further.
+
+**Known limitation -- feats/class features have no automatic limited-use
+tracking.** D&D Beyond stores a class feature's uses as a flat per-level
+table (e.g. "2 uses at level 3"), not a reset-period field like spells
+get, so there's no reliable source to compute Foundry's recovery period
+from. Set an imported feature's uses by hand on the Item if you want it
+to count down (Second Wind, Action Surge, etc.).
 
 Every import prints the full raw D&D Beyond JSON to the browser console
 (F12 -> Console) along with the mapped actor data, so the mapping in
