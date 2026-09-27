@@ -40,6 +40,14 @@ in place. Otherwise a new one is created.
 
 ## Changelog
 
+- **2026.09.27.8** -- Fixed "Convert to D&D Beyond Character" not showing
+  up on right-click. This world runs Foundry v14, which quietly changed how
+  the Actor Directory's right-click menu is built: it no longer listens for
+  the hook this module used to add its own entry, and it only builds that
+  menu once (right when the world first loads), not fresh every time you
+  right-click. Rewritten to hook in the way v14 actually supports. No
+  change to the D&D Beyond side of things -- this was purely a Foundry-side
+  fix.
 - **2026.09.27.7** -- A few mundane items still weren't matching a real
   compendium item because D&D Beyond names them differently: "Rations (1
   day)" vs. the compendium's "Rations", "Clothes, Common" vs. "Common

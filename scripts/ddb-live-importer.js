@@ -368,27 +368,38 @@ Hooks.on("renderActorDirectory", (app, html) => {
 // Right-click an existing actor -> "Convert to D&D Beyond Character" to
 // re-sync that specific actor (no name-matching needed, and the character
 // ID is remembered on it for next time).
-function liElement(li) {
-  return li instanceof HTMLElement ? li : li?.[0] ?? null;
-}
+//
+// NOT a Hooks.on("getActorDirectoryEntryContext", ...) call. CONFIRMED live
+// on 2026-09-27 against Foundry v14.368: that hook is never called anymore
+// (Hooks.call/callAll simply never fires for the actor directory's context
+// menu -- verified by patching Hooks.callAll itself and watching it stay
+// silent through a real right-click). Also confirmed live: the entry list
+// is built exactly ONCE, the first time the directory ever constructs its
+// context menu, and reused after that -- so this has to be in place before
+// that first build, not added reactively. Patching the class method here,
+// at module load (which always runs before the sidebar ever renders), is
+// what actually works, and the entry shape itself changed too: "condition"
+// is now "visible" and "callback" is now "onClick" (confirmed by reading
+// a real core menu entry's own keys live).
+Hooks.once("init", () => {
+  const proto = foundry.applications.sidebar.tabs.ActorDirectory.prototype;
+  const original = proto._getEntryContextOptions;
 
-function liEntryId(li) {
-  const el = liElement(li);
-  return el?.dataset?.entryId ?? el?.dataset?.documentId ?? el?.getAttribute?.("data-entry-id") ?? null;
-}
-
-Hooks.on("getActorDirectoryEntryContext", (_html, entryOptions) => {
-  entryOptions.push({
-    name: "DDBLI.ContextConvert",
-    icon: '<i class="fa-solid fa-dice-d20"></i>',
-    condition: li => {
-      if (!game.user.isGM) return false;
-      const actor = game.actors.get(liEntryId(li));
-      return actor?.type === "character";
-    },
-    callback: li => {
-      const actor = game.actors.get(liEntryId(li));
-      if (actor) new DDBImportDialog(actor).render(true);
-    }
-  });
+  proto._getEntryContextOptions = function (...args) {
+    const options = original.apply(this, args);
+    options.push({
+      label: "DDBLI.ContextConvert",
+      icon: '<i class="fa-solid fa-dice-d20"></i>',
+      visible: li => {
+        if (!game.user.isGM) return false;
+        const actor = game.actors.get(li?.dataset?.entryId);
+        return actor?.type === "character";
+      },
+      onClick: li => {
+        const actor = game.actors.get(li?.dataset?.entryId);
+        if (actor) new DDBImportDialog(actor).render(true);
+      }
+    });
+    return options;
+  };
 });
