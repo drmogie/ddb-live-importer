@@ -92,6 +92,14 @@ Confirmed working, from a real character export:
 - Feats and class features as their own Items
 - Skills / saving-throw proficiency checkboxes
 
+**On the list -- let Foundry do the math instead of this module:** right now
+HP max and AC are computed here and written in as flat totals. Better: feed
+Foundry the raw ingredients (ability scores, hit dice per class, a properly
+typed equipped armor item) and let the dnd5e system calculate HP and AC
+itself, same as a hand-built character. Would also fix the CON/ASI gap
+above for free, since Foundry's own HP formula just uses whatever CON score
+it's given.
+
 Every import prints the full raw D&D Beyond JSON to the browser console
 (F12 -> Console) along with the mapped actor data, so the mapping in
 `scripts/ddb-mapper.js` can be extended without re-scraping the schema from
