@@ -40,6 +40,12 @@ in place. Otherwise a new one is created.
 
 ## Changelog
 
+- **2026.09.27.7** -- A few mundane items still weren't matching a real
+  compendium item because D&D Beyond names them differently: "Rations (1
+  day)" vs. the compendium's "Rations", "Clothes, Common" vs. "Common
+  Clothes", "Rope, Hempen (50 feet)" vs. "Hempen Rope (50 ft.)". The item
+  lookup now drops trailing "(...)" notes and handles D&D Beyond's reversed
+  "Type, Descriptor" naming, so these match correctly too.
 - **2026.09.27.6** -- Two accuracy changes:
   - **Real items instead of guesses.** Every inventory item (including
     magic items) is now looked up by name in your Foundry item

@@ -87,17 +87,56 @@ async function getItemCompendiumIndex() {
   return entries;
 }
 
+/** Drops a trailing "(...)" note D&D Beyond adds but compendiums don't, e.g. "Rations (1 day)" -> "Rations". */
+function stripParenthetical(name) {
+  return name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
+/** "Rope, Hempen" -> "Hempen Rope" -- D&D Beyond sometimes lists gear "Type, Descriptor" backwards from compendiums. */
+function reorderComma(name) {
+  const m = name.match(/^([^,]+),\s*(.+)$/);
+  return m ? `${m[2]} ${m[1]}` : null;
+}
+
+/** Every name variant worth trying, in order, for one D&D Beyond item name. */
+function candidateNames(name) {
+  const stripped = stripParenthetical(name);
+  const candidates = [name];
+  if (stripped !== name) candidates.push(stripped);
+  for (const n of [name, stripped]) {
+    const reordered = reorderComma(n);
+    if (reordered) candidates.push(reordered);
+  }
+  candidates.push(`${name} Armor`); // "Adamantine Splint" -> compendium's "Adamantine Splint Armor"
+  return [...new Set(candidates)];
+}
+
 /**
  * Looks for a real compendium item matching this D&D Beyond item's name.
- * D&D Beyond sometimes drops a word compendiums keep (e.g. its "Adamantine
- * Splint" vs. the compendium's "Adamantine Splint Armor"), so a plain name
- * plus that same name with " Armor" appended are both tried.
+ * Tries an exact match (after the cleanup above) first. If nothing matches
+ * exactly, falls back to a "starts with" match -- confirmed live on
+ * 2026-09-27 for D&D Beyond's "Rope, Hempen (50 feet)", which needs both the
+ * comma reorder AND a starts-with match to find the compendium's "Hempen
+ * Rope (50 ft.)". This is a looser check, so it's only tried once the exact
+ * pass comes up empty, and it takes whichever compendium is highest
+ * priority (the index is already built in that order).
  */
 async function findCompendiumItem(name) {
   const index = await getItemCompendiumIndex();
-  const target = normalizeItemName(name);
-  const targetWithArmor = normalizeItemName(`${name} Armor`);
-  return index.find(e => e.normalized === target || e.normalized === targetWithArmor) ?? null;
+
+  for (const candidate of candidateNames(name)) {
+    const target = normalizeItemName(candidate);
+    const exact = index.find(e => e.normalized === target);
+    if (exact) return exact;
+  }
+
+  const looseTarget = normalizeItemName(reorderComma(stripParenthetical(name)) ?? stripParenthetical(name));
+  if (looseTarget.length > 3) {
+    const loose = index.find(e => e.normalized.startsWith(looseTarget));
+    if (loose) return loose;
+  }
+
+  return null;
 }
 
 /**
