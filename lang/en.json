@@ -1,8 +1,8 @@
 {
   "DDBLI.ButtonLabel": "Import from D&D Beyond",
   "DDBLI.DialogTitle": "D&D Beyond Live Import",
-  "DDBLI.ConvertDialogTitle": "Convert {name} from D&D Beyond",
-  "DDBLI.ContextConvert": "Convert to D&D Beyond Character",
+  "DDBLI.ConvertDialogTitle": "Update {name} from D&D Beyond",
+  "DDBLI.ContextConvert": "Update D&D Beyond Character",
   "DDBLI.ConvertingActor": "Updating:",
   "DDBLI.Step1": "1. Click \"Open D&D Beyond\" below. It opens a new tab to your campaigns using your current login.",
   "DDBLI.Step2": "2. Pick your campaign, then click into the character you want.",

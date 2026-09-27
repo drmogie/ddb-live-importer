@@ -40,6 +40,9 @@ in place. Otherwise a new one is created.
 
 ## Changelog
 
+- **2026.09.27.10** -- Renamed the right-click menu option from "Convert to
+  D&D Beyond Character" to "Update D&D Beyond Character" -- same thing,
+  clearer wording.
 - **2026.09.27.9** -- Added the last 3 items from "Not built yet": spells,
   feats/class features/background feature as real Items, and skill/saving
   throw proficiency checkboxes.
