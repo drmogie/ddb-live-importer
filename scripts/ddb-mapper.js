@@ -53,14 +53,6 @@ const SIZE_ID_MAP = {
   7: "grg"
 };
 
-/** DDB armorTypeId -> dnd5e armor "type" bucket, used for AC calc. */
-const ARMOR_TYPE = {
-  1: "light",
-  2: "medium",
-  3: "heavy",
-  4: "shield"
-};
-
 function abilityMod(score) {
   return Math.floor((score - 10) / 2);
 }
@@ -144,40 +136,19 @@ function totalLevel(data) {
  * Max HP. Confirmed formula against Po Tato:
  *   baseHitPoints (52) + conMod (3) * totalLevel (8) = 76, matches the sheet.
  * overrideHitPoints, when set, wins outright.
+ *
+ * NOTE: this is still computed here, not by Foundry. Checked live on
+ * 2026-09-27: unlike AC, dnd5e does NOT derive hp.max on its own from hit
+ * dice + CON for an already-built character -- it's a stored field, only
+ * ever computed interactively by the level-up wizard as you add levels one
+ * at a time. So there's no data-only way to hand this one off; getting CON
+ * right (see the KNOWN GAP above) is what actually fixes HP.
  */
 function computeMaxHP(data, conScore) {
   if (typeof data.overrideHitPoints === "number") return data.overrideHitPoints;
   const base = data.baseHitPoints ?? 0;
   const bonus = data.bonusHitPoints ?? 0;
   return base + abilityMod(conScore) * totalLevel(data) + bonus;
-}
-
-/**
- * Best-effort AC from equipped armor. Not fully validated end-to-end yet —
- * check the actor's AC in Foundry after import.
- */
-function computeAC(data, dexScore) {
-  const dexMod = abilityMod(dexScore);
-  const equipped = (data.inventory ?? []).filter(i => i.equipped);
-
-  const armor = equipped.find(
-    i => i.definition?.armorTypeId && i.definition.armorTypeId !== 4 && i.definition?.armorClass
-  );
-  const shield = equipped.find(i => i.definition?.armorTypeId === 4);
-
-  let ac;
-  if (armor) {
-    const type = ARMOR_TYPE[armor.definition.armorTypeId] ?? "medium";
-    const base = armor.definition.armorClass;
-    if (type === "light") ac = base + dexMod;
-    else if (type === "medium") ac = base + Math.min(dexMod, 2);
-    else ac = base; // heavy: no dex
-  } else {
-    ac = 10 + dexMod; // unarmored
-  }
-  if (shield) ac += shield.definition?.armorClass ?? 2;
-
-  return ac;
 }
 
 /**
@@ -234,7 +205,13 @@ function guessItemType(def) {
   return "loot"; // matches DDB's "Other Gear" -- correct for mundane adventuring gear.
 }
 
-/** Very light equipment pass-through: name, quantity, equipped, weight. */
+/**
+ * Very light equipment pass-through: name, quantity, equipped, weight.
+ * This is a FALLBACK now -- ddb-live-importer.js tries to swap each of
+ * these for the real item from a Foundry compendium first (proper damage,
+ * AC, properties, etc.), and only keeps this basic version when nothing
+ * matches (typically homebrew content).
+ */
 function buildGearItems(data) {
   return (data.inventory ?? []).map(i => {
     const def = i.definition ?? {};
@@ -278,7 +255,6 @@ export function mapDdbCharacterToActor(ddbResponse) {
 
   const scores = effectiveAbilityScores(data);
   const maxHP = computeMaxHP(data, scores.con);
-  const ac = computeAC(data, scores.dex);
   const speed = data.race?.weightSpeeds?.normal ?? { walk: 30 };
   const size = SIZE_ID_MAP[data.race?.sizeId] ?? "med";
 
@@ -299,7 +275,14 @@ export function mapDdbCharacterToActor(ddbResponse) {
           max: maxHP,
           temp: data.temporaryHitPoints ?? 0
         },
-        ac: { flat: ac, calc: "flat" },
+        // No AC here on purpose: dnd5e computes AC itself from whichever
+        // equipped item has real armor data, once ddb-live-importer.js has
+        // swapped our items for real compendium items (confirmed live
+        // against Po Tato on 2026-09-27 -- equip a real compendium armor
+        // item and dnd5e's own "armored" formula takes over automatically,
+        // no override needed). The nulls below clear any stale override
+        // left by an older version of this module on a re-sync.
+        ac: { flat: null, calc: null },
         movement: {
           walk: speed.walk ?? 30,
           fly: speed.fly ?? 0,

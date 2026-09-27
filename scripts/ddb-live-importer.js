@@ -16,8 +16,9 @@
  *   5. GM selects all (Ctrl+A) and copies (Ctrl+C) on that page.
  *   6. Back in Foundry, GM pastes (Ctrl+V) into the text box and clicks
  *      "Import Character." This module reads that text, maps the data (see
- *      ddb-mapper.js), and either creates a new actor, updates the actor
- *      being converted, or updates an existing actor matched by name.
+ *      ddb-mapper.js), swaps items for real compendium items where it can,
+ *      and either creates a new actor, updates the actor being converted,
+ *      or updates an existing actor matched by name.
  *
  * The character ID is saved on the actor afterward, so next time it's
  * pre-filled automatically for a quick re-sync.
@@ -48,6 +49,88 @@ function findExistingActor(name) {
 }
 
 /**
+ * Item compendiums to search for a real match, in priority order. Confirmed
+ * live against Po Tato's real gear on 2026-09-27: his weapons, armor, and
+ * magic items (Vicious Glaive, Belt of Fire Giant Strength, Bag of Holding)
+ * all matched exactly in dnd5e.items. Searching a pack that doesn't exist in
+ * a given world is harmless -- it's just skipped.
+ */
+const ITEM_COMPENDIUM_IDS = [
+  "world.ddb-underground-playground-ddb-items", // this world's own item pack, if present
+  "dnd5e.items", // core SRD + classic DMG magic items
+  "dnd5e.equipment24" // 2024-rules equipment
+];
+
+function normalizeItemName(name) {
+  return (name ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+let _itemIndexCache = null;
+
+/** Builds (once) a flat, normalized index across all the compendiums above. */
+async function getItemCompendiumIndex() {
+  if (_itemIndexCache) return _itemIndexCache;
+  const entries = [];
+  for (const packId of ITEM_COMPENDIUM_IDS) {
+    const pack = game.packs.get(packId);
+    if (!pack) continue;
+    await pack.getIndex();
+    for (const entry of pack.index) {
+      entries.push({ pack, entry, normalized: normalizeItemName(entry.name) });
+    }
+  }
+  _itemIndexCache = entries;
+  return entries;
+}
+
+/**
+ * Looks for a real compendium item matching this D&D Beyond item's name.
+ * D&D Beyond sometimes drops a word compendiums keep (e.g. its "Adamantine
+ * Splint" vs. the compendium's "Adamantine Splint Armor"), so a plain name
+ * plus that same name with " Armor" appended are both tried.
+ */
+async function findCompendiumItem(name) {
+  const index = await getItemCompendiumIndex();
+  const target = normalizeItemName(name);
+  const targetWithArmor = normalizeItemName(`${name} Armor`);
+  return index.find(e => e.normalized === target || e.normalized === targetWithArmor) ?? null;
+}
+
+/**
+ * Swaps our basic guessed items for the real compendium item wherever one
+ * matches by name, keeping only the character-specific bits (quantity,
+ * equipped, attuned) from what ddb-mapper.js built. Falls back to the basic
+ * item when nothing matches (typically homebrew content). Class items are
+ * left alone -- they're not in an item compendium.
+ */
+async function resolveItemsAgainstCompendiums(items) {
+  const resolved = [];
+  for (const basic of items) {
+    if (basic.type === "class") {
+      resolved.push(basic);
+      continue;
+    }
+    const match = await findCompendiumItem(basic.name);
+    if (!match) {
+      resolved.push(basic);
+      continue;
+    }
+    const doc = await match.pack.getDocument(match.entry._id);
+    const data = doc.toObject();
+    delete data._id;
+    data.system.quantity = basic.system.quantity;
+    data.system.equipped = basic.system.equipped;
+    if ("attuned" in data.system) data.system.attuned = basic.system.attuned;
+    resolved.push(data);
+  }
+  return resolved;
+}
+
+/**
  * Parses the JSON text the GM pasted into the textarea.
  *
  * IMPORTANT: this deliberately does NOT use navigator.clipboard.readText().
@@ -70,11 +153,17 @@ function parseCharacterJson(text) {
   }
 }
 
+// Every non-class item type this module might create, so a re-sync clears
+// out the old set cleanly -- including "tool"/"container", which only show
+// up once a real compendium item (e.g. a Backpack) replaces our old "loot"
+// guess for it.
+const GEAR_ITEM_TYPES = ["weapon", "equipment", "consumable", "loot", "tool", "container"];
+
 /** Replace an actor's class/gear items with a freshly mapped set. */
 async function replaceItems(actor, items) {
   await actor.deleteEmbeddedDocuments(
     "Item",
-    actor.items.filter(i => ["class", "weapon", "equipment", "consumable", "loot"].includes(i.type)).map(i => i.id)
+    actor.items.filter(i => GEAR_ITEM_TYPES.includes(i.type)).map(i => i.id)
   );
   await actor.createEmbeddedDocuments("Item", items);
 }
@@ -82,7 +171,8 @@ async function replaceItems(actor, items) {
 /** Create a new actor, or update one matched by name, from pasted JSON text. */
 async function importFromJson(rawText) {
   const raw = parseCharacterJson(rawText);
-  const { actorData, items, raw: ddbData } = mapDdbCharacterToActor(raw);
+  const { actorData, items: basicItems, raw: ddbData } = mapDdbCharacterToActor(raw);
+  const items = await resolveItemsAgainstCompendiums(basicItems);
 
   console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
   console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
@@ -105,7 +195,8 @@ async function importFromJson(rawText) {
 /** Convert/re-sync one specific actor (from the right-click menu) from pasted JSON text. */
 async function convertActorFromJson(actor, rawText) {
   const raw = parseCharacterJson(rawText);
-  const { actorData, items, raw: ddbData } = mapDdbCharacterToActor(raw);
+  const { actorData, items: basicItems, raw: ddbData } = mapDdbCharacterToActor(raw);
+  const items = await resolveItemsAgainstCompendiums(basicItems);
 
   console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
   console.log(`${MODULE_ID} | mapped actor data`, actorData, items);

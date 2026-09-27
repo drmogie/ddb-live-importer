@@ -40,6 +40,25 @@ in place. Otherwise a new one is created.
 
 ## Changelog
 
+- **2026.09.27.6** -- Two accuracy changes:
+  - **Real items instead of guesses.** Every inventory item (including
+    magic items) is now looked up by name in your Foundry item
+    compendiums (`dnd5e.items`, `dnd5e.equipment24`, and any
+    world-specific item pack) and the real item is attached to the
+    character -- correct damage dice, armor values, weight, properties,
+    everything -- instead of this module guessing at a basic item. If an
+    item's name doesn't match anything in your compendiums (homebrew, or
+    a naming mismatch like "Rope, Hempen (50 feet)" vs. a compendium's
+    "Hempen Rope (50 ft.)"), it falls back to the old basic-item guess, so
+    nothing is ever left out.
+  - **AC is now computed by Foundry itself**, not this module. Once a real
+    compendium armor item is attached and equipped (see above), the dnd5e
+    system detects it and calculates AC on its own, the same way it would
+    for a hand-built character. This module no longer writes an AC number
+    at all.
+- **2026.09.27.5** -- Item types now use D&D Beyond's own category field
+  instead of guessing, fixing items (including significant magic items)
+  that were all showing up as generic "Loot."
 - **2026.09.27.4** -- Fixed the "Paste Character Data" step always failing
   with "Couldn't read the clipboard." Foundry servers reached over plain
   http:// (no TLS, e.g. a LAN IP) are not a "secure context," and Chrome
@@ -72,33 +91,39 @@ Confirmed working, from a real character export:
 - Class(es), subclass(es), level
 - Ability scores -- including magic items that force a score (e.g. a Belt
   of Giant Strength), which D&D Beyond applies on top of the base score
-- Hit points (max, current, temp)
+- Hit points (max, current, temp) -- computed by this module (see below)
+- Armor Class -- computed by Foundry itself from your equipped armor item
 - Speed (walk/fly/swim/climb/burrow)
 - Currency (pp/gp/ep/sp/cp)
 - Biography: backstory, personality, ideals, bonds, flaws
-- Inventory as basic gear items (name, quantity, equipped, weight) -- not
-  yet fully mechanical (see below)
+- Inventory as real Foundry items where a compendium match is found
+  (correct damage, armor, properties, magic items included), otherwise a
+  basic gear item as a fallback
 
 **Best-effort, check it after import:**
-- Armor Class -- calculated from equipped armor + dex, may not match every
-  edge case (magic armor bonuses, special AC formulas from class features)
+- Hit point max -- see "Known limitation" below; can come out a couple
+  points low if a racial or feat Ability Score Increase was involved
 - Size -- D&D Beyond doesn't document this field publicly; defaults to
   Medium if unsure
+- Item name matching -- a handful of items may not match your compendiums
+  by name (see above) and fall back to a basic guessed item
 
 **Not built yet:**
 - Spells
-- Fully mechanical weapons/armor (attack bonus, damage dice, properties as
-  Foundry activities) -- items import as basic gear for now
 - Feats and class features as their own Items
 - Skills / saving-throw proficiency checkboxes
 
-**On the list -- let Foundry do the math instead of this module:** right now
-HP max and AC are computed here and written in as flat totals. Better: feed
-Foundry the raw ingredients (ability scores, hit dice per class, a properly
-typed equipped armor item) and let the dnd5e system calculate HP and AC
-itself, same as a hand-built character. Would also fix the CON/ASI gap
-above for free, since Foundry's own HP formula just uses whatever CON score
-it's given.
+**Known limitation -- HP max is still computed by this module, not
+Foundry.** AC (as of 2026.09.27.6) is handed off to Foundry's own
+calculation once a real armor item is attached. HP can't work the same way:
+Foundry's dnd5e system only derives max HP from hit dice + CON through its
+interactive level-up wizard, not automatically for a bulk-imported
+character, so this module still computes it directly (base HP + CON mod x
+level). The real fix for HP accuracy is getting the CON score exactly
+right -- D&D Beyond lists every possible Ability Score Increase choice for
+a race/feat, not just the one actually picked, which can make CON (and so
+HP) come out 1-2 low. Every import prints D&D Beyond's raw `modifiers` data
+to the console so this can be tracked down further.
 
 Every import prints the full raw D&D Beyond JSON to the browser console
 (F12 -> Console) along with the mapped actor data, so the mapping in
