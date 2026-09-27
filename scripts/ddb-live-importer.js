@@ -109,54 +109,75 @@ async function importFromClipboard() {
   }
 }
 
-class DDBImportDialog extends Application {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "ddb-live-importer-dialog",
-      title: game.i18n.localize("DDBLI.DialogTitle"),
-      template: `modules/${MODULE_ID}/templates/import-dialog.html`,
-      width: 480,
-      height: "auto"
-    });
+// Foundry v13+ moved core Applications (including ActorDirectory and the
+// window class you build dialogs from) to ApplicationV2. The renderX hooks
+// now hand you a plain HTMLElement instead of a jQuery object, and the old
+// Application/activateListeners(html) pattern (which needed html.find(...))
+// throws immediately on that plain element. This is written against the
+// current ApplicationV2 + HandlebarsApplicationMixin API.
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "ddb-live-importer-dialog",
+    classes: ["ddb-live-importer"],
+    window: {
+      title: "DDBLI.DialogTitle",
+      icon: "fa-solid fa-dice-d20",
+      resizable: false
+    },
+    position: { width: 480, height: "auto" },
+    actions: {
+      "open-ddb": DDBImportDialog.#onOpenDDB,
+      paste: DDBImportDialog.#onPaste
+    }
+  };
+
+  static PARTS = {
+    body: { template: `modules/${MODULE_ID}/templates/import-dialog.html` }
+  };
+
+  async _prepareContext(_options) {
+    return { bookmarkletHref: bookmarkletHref() };
   }
 
-  getData() {
-    return {
-      bookmarkletHref: bookmarkletHref()
-    };
+  static #onOpenDDB() {
+    window.open(DDB_CAMPAIGNS_URL, "_blank", "noopener");
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
-    html.find('[data-action="open-ddb"]').on("click", () => {
-      window.open(DDB_CAMPAIGNS_URL, "_blank", "noopener");
-    });
-    html.find('[data-action="paste"]').on("click", async ev => {
-      const button = ev.currentTarget;
-      button.disabled = true;
-      try {
-        await importFromClipboard();
-        this.close();
-      } catch (err) {
-        ui.notifications.error(err.message);
-        console.error(`${MODULE_ID} |`, err);
-      } finally {
-        button.disabled = false;
-      }
-    });
+  static async #onPaste(_event, target) {
+    target.disabled = true;
+    try {
+      await importFromClipboard();
+      this.close();
+    } catch (err) {
+      ui.notifications.error(err.message);
+      console.error(`${MODULE_ID} |`, err);
+    } finally {
+      target.disabled = false;
+    }
   }
 }
 
 Hooks.on("renderActorDirectory", (app, html) => {
-  if (!game.user.isGM) return;
-  const button = $(
-    `<button type="button" class="ddb-live-importer-open">
-       <i class="fa-solid fa-dice-d20"></i> ${game.i18n.localize("DDBLI.ButtonLabel")}
-     </button>`
-  );
-  button.on("click", () => new DDBImportDialog().render(true));
+  try {
+    if (!game.user.isGM) return;
 
-  const footer = html.find(".directory-footer");
-  if (footer.length) footer.append(button);
-  else html.find(".directory-header").append(button);
+    // Handles both a raw HTMLElement (v13+) and a jQuery-wrapped element
+    // (pre-v13), instead of assuming one or the other.
+    const el = html instanceof HTMLElement ? html : html?.[0];
+    if (!el || el.querySelector(".ddb-live-importer-open")) return; // no double-add on re-render
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ddb-live-importer-open";
+    button.innerHTML = `<i class="fa-solid fa-dice-d20"></i> ${game.i18n.localize("DDBLI.ButtonLabel")}`;
+    button.addEventListener("click", () => new DDBImportDialog().render(true));
+
+    const footer = el.querySelector(".directory-footer") ?? el.querySelector(".directory-header") ?? el;
+    footer.appendChild(button);
+  } catch (err) {
+    // Fail loud in the console instead of silently never adding the button.
+    console.error(`${MODULE_ID} | failed to add the Import button`, err);
+  }
 });

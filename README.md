@@ -35,7 +35,12 @@ makes) and copies it to your clipboard. It doesn't send anything anywhere
 else. Source is in `scripts/ddb-bookmarklet.source.js` if you want to read
 or edit it before installing.
 
-## What gets imported (v2026.09.27.1)
+## Changelog
+
+- **2026.09.27.2** — Fixed the "Import from D&D Beyond" button never appearing in the Actor Directory. Foundry v13+ changed core Applications to a new framework (ApplicationV2) that hands modules a plain HTML element instead of the old jQuery object; the button code was still using the jQuery-only `.find()`, which threw an error every time (visible in the browser console as `html.find is not a function`) before the button could be added. Rewritten against the current ApplicationV2 API.
+- **2026.09.27.1** — Initial version.
+
+## What gets imported
 
 Confirmed working, from a real character export:
 
