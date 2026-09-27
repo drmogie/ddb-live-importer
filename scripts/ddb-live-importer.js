@@ -14,10 +14,10 @@
  *   4. "Get Character JSON" opens the raw character data in a new tab (a
  *      plain link — no script runs on D&D Beyond's page at all).
  *   5. GM selects all (Ctrl+A) and copies (Ctrl+C) on that page.
- *   6. Back in Foundry, GM clicks "Paste Character Data." This module reads
- *      the clipboard, maps the data (see ddb-mapper.js), and either creates
- *      a new actor, updates the actor being converted, or updates an
- *      existing actor matched by name.
+ *   6. Back in Foundry, GM pastes (Ctrl+V) into the text box and clicks
+ *      "Import Character." This module reads that text, maps the data (see
+ *      ddb-mapper.js), and either creates a new actor, updates the actor
+ *      being converted, or updates an existing actor matched by name.
  *
  * The character ID is saved on the actor afterward, so next time it's
  * pre-filled automatically for a quick re-sync.
@@ -47,23 +47,27 @@ function findExistingActor(name) {
   );
 }
 
-async function readClipboardCharacter() {
-  let text;
-  try {
-    text = await navigator.clipboard.readText();
-  } catch (err) {
-    throw new Error(game.i18n.localize("DDBLI.ImportFailedClipboard"));
-  }
+/**
+ * Parses the JSON text the GM pasted into the textarea.
+ *
+ * IMPORTANT: this deliberately does NOT use navigator.clipboard.readText().
+ * Foundry servers are very commonly reached over plain http:// (a LAN IP
+ * like this one, no TLS cert) rather than https://. The Clipboard API's
+ * read permission only works on a "secure context" (https, or localhost) --
+ * on plain http it silently/consistently fails every time, which is exactly
+ * the "Couldn't read the clipboard" error this module used to throw no
+ * matter what the GM did. A normal Ctrl+V paste into a text field has no
+ * such restriction, so that's what this module uses instead.
+ */
+function parseCharacterJson(text) {
   if (!text || !text.trim()) {
     throw new Error(game.i18n.localize("DDBLI.ImportFailedEmpty"));
   }
-  let json;
   try {
-    json = JSON.parse(text);
+    return JSON.parse(text);
   } catch (err) {
     throw new Error(game.i18n.localize("DDBLI.ImportFailedParse"));
   }
-  return json;
 }
 
 /** Replace an actor's class/gear items with a freshly mapped set. */
@@ -75,9 +79,9 @@ async function replaceItems(actor, items) {
   await actor.createEmbeddedDocuments("Item", items);
 }
 
-/** Create a new actor, or update one matched by name, from clipboard data. */
-async function importFromClipboard() {
-  const raw = await readClipboardCharacter();
+/** Create a new actor, or update one matched by name, from pasted JSON text. */
+async function importFromJson(rawText) {
+  const raw = parseCharacterJson(rawText);
   const { actorData, items, raw: ddbData } = mapDdbCharacterToActor(raw);
 
   console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
@@ -98,9 +102,9 @@ async function importFromClipboard() {
   }
 }
 
-/** Convert/re-sync one specific actor (from the right-click menu) from clipboard data. */
-async function convertActorFromClipboard(actor) {
-  const raw = await readClipboardCharacter();
+/** Convert/re-sync one specific actor (from the right-click menu) from pasted JSON text. */
+async function convertActorFromJson(actor, rawText) {
+  const raw = parseCharacterJson(rawText);
   const { actorData, items, raw: ddbData } = mapDdbCharacterToActor(raw);
 
   console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
@@ -186,12 +190,15 @@ class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async #onPaste(_event, target) {
+    const textarea = this.element.querySelector('textarea[name="ddbJson"]');
+    const text = textarea?.value ?? "";
+
     target.disabled = true;
     try {
       if (this.targetActor) {
-        await convertActorFromClipboard(this.targetActor);
+        await convertActorFromJson(this.targetActor, text);
       } else {
-        await importFromClipboard();
+        await importFromJson(text);
       }
       this.close();
     } catch (err) {

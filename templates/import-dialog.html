@@ -22,14 +22,18 @@
     <input type="text" name="ddbUrl" value="{{savedId}}" placeholder="{{localize 'DDBLI.UrlInputPlaceholder'}}">
   </div>
 
-  <div class="ddbli-buttons">
-    <button type="button" data-action="open-json" disabled>
-      <i class="fa-solid fa-file-code"></i>
-      {{localize "DDBLI.GetJson"}}
-    </button>
-    <button type="button" data-action="paste">
-      <i class="fa-solid fa-clipboard"></i>
-      {{localize "DDBLI.PasteData"}}
-    </button>
+  <button type="button" class="ddbli-json-btn" data-action="open-json" disabled>
+    <i class="fa-solid fa-file-code"></i>
+    {{localize "DDBLI.GetJson"}}
+  </button>
+
+  <div class="form-group ddbli-json">
+    <label>{{localize "DDBLI.PasteBoxLabel"}}</label>
+    <textarea name="ddbJson" rows="4" placeholder="{{localize 'DDBLI.PasteBoxPlaceholder'}}"></textarea>
   </div>
+
+  <button type="button" class="ddbli-import-btn" data-action="paste">
+    <i class="fa-solid fa-dice-d20"></i>
+    {{localize "DDBLI.PasteData"}}
+  </button>
 </form>

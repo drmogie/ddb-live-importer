@@ -9,21 +9,23 @@ updates the existing one if a character with that name is already there.
 
 ## How it works
 
-Foundry can't talk to D&D Beyond's servers directly — different site, blocked
-by the browser for security. So instead, everything happens through your own
-browser, logged in as you — no bookmarklet, nothing to drag:
+Foundry can't talk to D&D Beyond's servers directly -- different site,
+blocked by the browser for security. So instead, everything happens through
+your own browser, logged in as you -- no bookmarklet, nothing to drag, no
+clipboard permissions to fight with:
 
 **New character:**
 1. In Foundry, click **Import from D&D Beyond** (Actor Directory, GM only).
-2. Click **Open D&D Beyond** — opens a real browser tab, already logged in as
-   you.
+2. Click **Open D&D Beyond** -- opens a real browser tab, already logged in
+   as you.
 3. Pick your campaign, then the character you want.
 4. Copy that character's link (or just the ID number in it) and paste it
    into the box in Foundry.
-5. Click **Get Character JSON** — opens the raw character data in a plain
+5. Click **Get Character JSON** -- opens the raw character data in a plain
    new tab (just a link, no script involved).
 6. On that page, press **Ctrl+A** then **Ctrl+C** to copy it all.
-7. Back in Foundry, click **Paste Character Data**.
+7. Back in Foundry, click into the text box, press **Ctrl+V**, then click
+   **Import Character**.
 
 If an actor with that exact name already exists in your world, it's updated
 in place. Otherwise a new one is created.
@@ -32,15 +34,35 @@ in place. Otherwise a new one is created.
 1. Right-click that actor in the Actor Directory.
 2. Pick **Convert to D&D Beyond Character**. The character ID box is already
    filled in from last time.
-3. Click **Get Character JSON**, copy it (Ctrl+A, Ctrl+C), come back and
-   click **Paste Character Data**. That one actor is updated, no name
-   matching needed.
+3. Click **Get Character JSON**, copy it (Ctrl+A, Ctrl+C), come back, paste
+   it (Ctrl+V) into the box, and click **Import Character**. That one actor
+   is updated, no name matching needed.
 
 ## Changelog
 
-- **2026.09.27.3** — Dropped the bookmarklet entirely (dragging it to the bookmarks bar wasn't working reliably). Replaced it with a plain "paste the character's URL or ID, then open+copy its JSON" flow — no script ever runs on D&D Beyond's page. Added a right-click **Convert to D&D Beyond Character** option on existing actors, which remembers the character ID for a quick re-sync next time.
-- **2026.09.27.2** — Fixed the "Import from D&D Beyond" button never appearing in the Actor Directory. Foundry v13+ changed core Applications to a new framework (ApplicationV2) that hands modules a plain HTML element instead of the old jQuery object; the button code was still using the jQuery-only `.find()`, which threw an error every time (visible in the browser console as `html.find is not a function`) before the button could be added. Rewritten against the current ApplicationV2 API.
-- **2026.09.27.1** — Initial version.
+- **2026.09.27.4** -- Fixed the "Paste Character Data" step always failing
+  with "Couldn't read the clipboard." Foundry servers reached over plain
+  http:// (no TLS, e.g. a LAN IP) are not a "secure context," and Chrome
+  blocks JavaScript from reading the clipboard at all on such pages -- no
+  fix on this module's side could work around that. Replaced the
+  clipboard-read step with a plain paste box: copy the JSON (Ctrl+A,
+  Ctrl+C) same as before, then click into the box in Foundry and press
+  Ctrl+V, which is a normal browser paste with no permission involved.
+- **2026.09.27.3** -- Dropped the bookmarklet entirely (dragging it to the
+  bookmarks bar wasn't working reliably). Replaced it with a plain "paste
+  the character's URL or ID, then open+copy its JSON" flow -- no script
+  ever runs on D&D Beyond's page. Added a right-click **Convert to D&D
+  Beyond Character** option on existing actors, which remembers the
+  character ID for a quick re-sync next time.
+- **2026.09.27.2** -- Fixed the "Import from D&D Beyond" button never
+  appearing in the Actor Directory. Foundry v13+ changed core Applications
+  to a new framework (ApplicationV2) that hands modules a plain HTML
+  element instead of the old jQuery object; the button code was still
+  using the jQuery-only `.find()`, which threw an error every time
+  (visible in the browser console as `html.find is not a function`) before
+  the button could be added. Rewritten against the current ApplicationV2
+  API.
+- **2026.09.27.1** -- Initial version.
 
 ## What gets imported
 
@@ -48,30 +70,30 @@ Confirmed working, from a real character export:
 
 - Name, portrait, race, background
 - Class(es), subclass(es), level
-- Ability scores — including magic items that force a score (e.g. a Belt of
-  Giant Strength), which D&D Beyond applies on top of the base score
+- Ability scores -- including magic items that force a score (e.g. a Belt
+  of Giant Strength), which D&D Beyond applies on top of the base score
 - Hit points (max, current, temp)
 - Speed (walk/fly/swim/climb/burrow)
 - Currency (pp/gp/ep/sp/cp)
 - Biography: backstory, personality, ideals, bonds, flaws
-- Inventory as basic gear items (name, quantity, equipped, weight) — not yet
-  fully mechanical (see below)
+- Inventory as basic gear items (name, quantity, equipped, weight) -- not
+  yet fully mechanical (see below)
 
 **Best-effort, check it after import:**
-- Armor Class — calculated from equipped armor + dex, may not match every
+- Armor Class -- calculated from equipped armor + dex, may not match every
   edge case (magic armor bonuses, special AC formulas from class features)
-- Size — D&D Beyond doesn't document this field publicly; defaults to
+- Size -- D&D Beyond doesn't document this field publicly; defaults to
   Medium if unsure
 
 **Not built yet:**
 - Spells
 - Fully mechanical weapons/armor (attack bonus, damage dice, properties as
-  Foundry activities) — items import as basic gear for now
+  Foundry activities) -- items import as basic gear for now
 - Feats and class features as their own Items
 - Skills / saving-throw proficiency checkboxes
 
 Every import prints the full raw D&D Beyond JSON to the browser console
-(F12 → Console) along with the mapped actor data, so the mapping in
+(F12 -> Console) along with the mapped actor data, so the mapping in
 `scripts/ddb-mapper.js` can be extended without re-scraping the schema from
 scratch.
 
@@ -84,5 +106,5 @@ scratch.
 
 ## Versioning
 
-`YYYY.MM.DD.#` — bump the last number for same-day changes, otherwise bump
+`YYYY.MM.DD.#` -- bump the last number for same-day changes, otherwise bump
 the date.

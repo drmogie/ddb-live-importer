@@ -36,16 +36,34 @@
   width: 100%;
 }
 
-.ddb-live-importer .ddbli-buttons {
-  display: flex;
-  gap: 8px;
+.ddb-live-importer button.ddbli-json-btn {
+  width: 100%;
+  margin: 0 0 10px 0;
 }
 
-.ddb-live-importer .ddbli-buttons button {
-  flex: 1;
-}
-
-.ddb-live-importer .ddbli-buttons button:disabled {
+.ddb-live-importer button.ddbli-json-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.ddb-live-importer .ddbli-json {
+  margin-bottom: 10px;
+}
+
+.ddb-live-importer .ddbli-json label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.ddb-live-importer .ddbli-json textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.85em;
+  resize: vertical;
+}
+
+.ddb-live-importer button.ddbli-import-btn {
+  width: 100%;
+  font-weight: bold;
 }
