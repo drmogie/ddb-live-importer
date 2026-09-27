@@ -199,16 +199,46 @@ function buildClassItems(data) {
   });
 }
 
+/**
+ * D&D Beyond "filterType" -> Foundry dnd5e Item type.
+ * CONFIRMED against Po Tato's real inventory on 2026-09-27: every item has a
+ * definition.filterType field. His had Weapon, Armor, Wondrous item, and
+ * "Other Gear" (mundane adventuring gear -- backpack, rope, rations, etc.,
+ * which dnd5e itself files under "loot", so that default is correct, not a
+ * bug). Ring/Rod/Wand/Staff/Potion/Scroll/Ammunition weren't in his
+ * inventory to confirm directly, but follow the same DDB category naming
+ * pattern, so they're mapped by their most likely Foundry equivalent.
+ */
+const FILTER_TYPE_ITEM_TYPE = {
+  Weapon: "weapon",
+  Armor: "equipment",
+  "Wondrous item": "equipment",
+  Ring: "equipment",
+  Rod: "equipment",
+  Wand: "equipment",
+  Staff: "equipment",
+  Potion: "consumable",
+  Scroll: "consumable",
+  Ammunition: "consumable"
+};
+
+/** Best-guess Foundry item type for one inventory entry's definition. */
+function guessItemType(def) {
+  const mapped = FILTER_TYPE_ITEM_TYPE[def.filterType];
+  if (mapped) return mapped;
+  // Fallbacks for when filterType is missing or something new shows up.
+  if (def.armorTypeId) return "equipment";
+  if (def.damage) return "weapon";
+  if (def.isConsumable) return "consumable";
+  if (/tools?$/i.test(def.name ?? "")) return "tool";
+  return "loot"; // matches DDB's "Other Gear" -- correct for mundane adventuring gear.
+}
+
 /** Very light equipment pass-through: name, quantity, equipped, weight. */
 function buildGearItems(data) {
   return (data.inventory ?? []).map(i => {
     const def = i.definition ?? {};
-    const isWeapon = !!def.damage || def.filterType === "Weapon";
-    const isArmorPiece = !!def.armorTypeId;
-    let type = "loot";
-    if (isWeapon) type = "weapon";
-    else if (isArmorPiece) type = "equipment";
-    else if (def.isConsumable) type = "consumable";
+    const type = guessItemType(def);
 
     return {
       name: def.name ?? "Unknown Item",
