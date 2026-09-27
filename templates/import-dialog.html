@@ -1,0 +1,29 @@
+<form class="ddb-live-importer">
+  <ol class="ddbli-steps">
+    <li>{{localize "DDBLI.Step1"}}</li>
+    <li>{{localize "DDBLI.Step2"}}</li>
+    <li>{{localize "DDBLI.Step3"}}</li>
+    <li>{{localize "DDBLI.Step4"}}</li>
+  </ol>
+
+  <div class="ddbli-buttons">
+    <button type="button" data-action="open-ddb">
+      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+      {{localize "DDBLI.OpenDDB"}}
+    </button>
+    <button type="button" data-action="paste">
+      <i class="fa-solid fa-clipboard"></i>
+      {{localize "DDBLI.PasteData"}}
+    </button>
+  </div>
+
+  <hr>
+
+  <p class="ddbli-setup">
+    <strong>{{localize "DDBLI.DialogTitle"}} - one-time setup:</strong><br>
+    Drag this to your bookmarks bar:
+    <a href="{{bookmarkletHref}}" class="ddbli-bookmarklet" onclick="return false;">DDB Import</a>
+  </p>
+
+  <p class="ddbli-note">{{localize "DDBLI.SecurityNote"}}</p>
+</form>

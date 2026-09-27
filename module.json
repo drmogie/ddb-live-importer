@@ -1,0 +1,46 @@
+{
+  "id": "ddb-live-importer",
+  "title": "D&D Beyond Live Importer",
+  "description": "Standalone GM tool. Opens a live, already-logged-in D&D Beyond browser tab, lets you pick a campaign and character, and imports or updates that character as a Foundry actor. No other modules required, no saved token.",
+  "version": "2026.09.27.1",
+  "authors": [
+    {
+      "name": "DrMogie"
+    }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "14"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "4",
+          "verified": "6"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "scripts/ddb-mapper.js",
+    "scripts/ddb-live-importer.js"
+  ],
+  "styles": [
+    "styles/ddb-live-importer.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "url": "https://github.com/DrMogie/ddb-live-importer",
+  "manifest": "https://raw.githubusercontent.com/DrMogie/ddb-live-importer/main/module.json",
+  "download": "https://github.com/DrMogie/ddb-live-importer/releases/latest/download/module.zip",
+  "readme": "README.md",
+  "license": "LICENSE"
+}

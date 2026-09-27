@@ -1,0 +1,39 @@
+.ddb-live-importer-open {
+  flex: none;
+  width: auto;
+  margin: 4px;
+}
+
+.ddb-live-importer .ddbli-steps {
+  margin: 0 0 10px 18px;
+  padding: 0;
+}
+
+.ddb-live-importer .ddbli-steps li {
+  margin-bottom: 4px;
+}
+
+.ddb-live-importer .ddbli-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ddb-live-importer .ddbli-buttons button {
+  flex: 1;
+}
+
+.ddb-live-importer .ddbli-bookmarklet {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-light-tertiary, #999);
+  border-radius: 4px;
+  background: var(--color-bg-option, #eee);
+  cursor: grab;
+  font-weight: bold;
+}
+
+.ddb-live-importer .ddbli-note {
+  font-size: 0.85em;
+  opacity: 0.8;
+}

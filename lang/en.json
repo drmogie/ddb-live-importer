@@ -1,0 +1,18 @@
+{
+  "DDBLI.ButtonLabel": "Import from D&D Beyond",
+  "DDBLI.DialogTitle": "D&D Beyond Live Import",
+  "DDBLI.Step1": "1. Click \"Open D&D Beyond\" below. It opens a new tab to your campaigns using your current login.",
+  "DDBLI.Step2": "2. Pick your campaign, then click into the character you want.",
+  "DDBLI.Step3": "3. On that character's page, click the DDB Import bookmarklet (see setup below if you haven't added it).",
+  "DDBLI.Step4": "4. Come back here and click \"Paste Character Data.\"",
+  "DDBLI.OpenDDB": "Open D&D Beyond",
+  "DDBLI.PasteData": "Paste Character Data",
+  "DDBLI.BookmarkletSetup": "One-time setup: drag this link to your bookmarks bar: {link}",
+  "DDBLI.SecurityNote": "The bookmarklet only runs in your own browser tab, using your own D&D Beyond login. It reads one character's data and copies it to your clipboard. Nothing is sent anywhere else.",
+  "DDBLI.ImportCreated": "Created new actor: {name}",
+  "DDBLI.ImportUpdated": "Updated existing actor: {name}",
+  "DDBLI.ImportFailedParse": "Clipboard doesn't look like D&D Beyond character data. Did you click the bookmarklet on a character page first?",
+  "DDBLI.ImportFailedEmpty": "Clipboard is empty. Click the bookmarklet on a D&D Beyond character page first.",
+  "DDBLI.ImportFailedClipboard": "Couldn't read the clipboard. Your browser may be blocking clipboard access for Foundry — click inside the Foundry window first, then try Paste again.",
+  "DDBLI.GMOnly": "Only the GM can import D&D Beyond characters."
+}
