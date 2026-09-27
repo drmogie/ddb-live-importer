@@ -38,7 +38,61 @@ in place. Otherwise a new one is created.
    it (Ctrl+V) into the box, and click **Import Character**. That one actor
    is updated, no name matching needed.
 
+## Settings & GM Sync Panel
+
+Every sync (single character or bulk) shares the same settings, found in
+Foundry's **Configure Settings** screen under this module's row:
+
+- **5 category toggles** -- Basics, Game Details, Abilities, Gear, Extras.
+  Turn any of these off and that category is left alone on future syncs
+  (nothing is deleted, it's just skipped). Name and portrait always sync
+  regardless of these toggles.
+- **Sync Panel** button -- opens a GM-only panel listing every character
+  already linked to D&D Beyond, with:
+  - A **Sync** button per character (opens the same import dialog,
+    pre-filled with that character's ID).
+  - A **Sync All** section at the top for bulk-updating every linked
+    character in one go (see below).
+  - Each character's last-synced time, and a result line ("3 done, 1
+    failed") after a Sync All run.
+
+**Sync All**, step by step: D&D Beyond blocks any other website (including
+your Foundry server) from fetching its data directly -- confirmed, this
+isn't something this module can work around. So instead:
+1. Click **Open D&D Beyond** in the Sync Panel -- opens a tab, already
+   logged in as you.
+2. Click **Copy Fetch Script** in the Sync Panel first.
+3. On the D&D Beyond tab, press **F12** to open the console, paste
+   (Ctrl+V), and press **Enter**. It fetches every linked character using
+   your real login and copies the results to your clipboard.
+4. Back in the Sync Panel, click in the results box, press **Ctrl+V**,
+   then click **Sync All**.
+
+**Every sync locks the actor to GM-only edit access.** After a sync
+(single or Sync All), that actor's permissions are set so only the GM can
+edit it -- anyone else (including a player who previously had Owner
+access) gets view-only (Observer). This keeps a player's in-session edits
+from getting silently overwritten by the next sync. GMs are never affected
+by this -- Foundry always treats GM users as full owners of everything.
+
 ## Changelog
+
+- **2026.09.27.11** -- Added the GM panel: settings toggles, a Sync Panel,
+  and a GM-only lock on synced actors.
+  - **5 sync-category toggles** (Basics, Game Details, Abilities, Gear,
+    Extras) in this module's world settings -- one shared setting used by
+    every import/update, single or bulk. See "Settings & GM Sync Panel"
+    above.
+  - **Sync Panel** -- a settings-menu button opens a GM-only panel listing
+    every D&D Beyond-linked character, each with its own Sync button, plus
+    a Sync All at the top and a "3 done, 1 failed" result line.
+  - **Sync All**: since D&D Beyond blocks a direct fetch from Foundry's
+    page (confirmed, cross-origin block), this works by pasting a short
+    script into a D&D Beyond tab's own console once per batch -- it
+    fetches every linked character with your real login and copies the
+    results back for the Sync Panel to apply.
+  - **GM-only lock**: every sync now sets the actor's permissions so only
+    the GM can edit it afterward; everyone else gets view-only.
 
 - **2026.09.27.10** -- Renamed the right-click menu option from "Convert to
   D&D Beyond Character" to "Update D&D Beyond Character" -- same thing,

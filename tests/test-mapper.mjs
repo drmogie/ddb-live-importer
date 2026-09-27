@@ -193,4 +193,29 @@ for (const [label, actual, expected] of everythingChecks) {
   console.log(`${pass ? "PASS" : "FAIL"}: ${label} -> got ${actual}, expected ${expected}`);
 }
 
+// Fourth fixture: sync-category toggles (the GM settings panel work). Turn
+// everything off except "gear" and confirm nothing from the other 4
+// categories shows up, but gear still does -- and that name/img (not gated
+// by any toggle) are still set.
+const toggleResult = mapDdbCharacterToActor(everythingFixture, {
+  basics: false, gameDetails: false, abilities: false, gear: true, extras: false
+});
+const toggleChecks = [
+  ["Name still set (ungated)", toggleResult.actorData.name, "Po Tato"],
+  ["basics off -> no race text", toggleResult.actorData.system.details?.race, undefined],
+  ["gameDetails off -> no class item", toggleResult.items.some(i => i.type === "class"), false],
+  ["gameDetails off -> no level field", toggleResult.actorData.system.details?.level, undefined],
+  ["abilities off -> no abilities block", toggleResult.actorData.system.abilities, undefined],
+  ["abilities off -> no skills block", toggleResult.actorData.system.skills, undefined],
+  ["gear on -> gear items present", toggleResult.items.some(i => i.type === "weapon"), true],
+  ["gear on -> currency present", toggleResult.actorData.system.currency?.gp, 0],
+  ["extras off -> no spells", toggleResult.items.some(i => i.type === "spell"), false],
+  ["extras off -> no feats", toggleResult.items.some(i => i.type === "feat"), false]
+];
+for (const [label, actual, expected] of toggleChecks) {
+  const pass = actual === expected;
+  if (!pass) allPass = false;
+  console.log(`${pass ? "PASS" : "FAIL"}: ${label} -> got ${actual}, expected ${expected}`);
+}
+
 console.log(allPass ? "\nALL CHECKS PASSED" : "\nSOME CHECKS FAILED");

@@ -22,10 +22,21 @@
  *
  * The character ID is saved on the actor afterward, so next time it's
  * pre-filled automatically for a quick re-sync.
+ *
+ * GM Sync Panel (game.settings.registerMenu, see the "init" hook at the
+ * bottom): lists every character already linked to D&D Beyond in one place,
+ * with a "sync one" button per character and a "sync all" button. "Sync all"
+ * still can't reach D&D Beyond directly from Foundry's page (confirmed:
+ * D&D Beyond blocks cross-origin fetches from any other site, CORS, so
+ * there is no way to auto-pull by character ID alone without a browser tab
+ * open to D&D Beyond itself) -- so it works by having the GM paste a short
+ * script into a D&D Beyond tab's own console once per batch (that script
+ * fetches every linked character with the GM's real login and copies the
+ * results), then pasting those results back into the Sync Panel.
  * ---------------------------------------------------------------------------
  */
 
-import { mapDdbCharacterToActor } from "./ddb-mapper.js";
+import { mapDdbCharacterToActor, DEFAULT_SYNC_OPTIONS, ITEM_TYPES_BY_CATEGORY } from "./ddb-mapper.js";
 
 const MODULE_ID = "ddb-live-importer";
 const DDB_CAMPAIGNS_URL = "https://www.dndbeyond.com/my-campaigns";
@@ -46,6 +57,47 @@ function findExistingActor(name) {
   return game.actors.find(
     a => a.type === "character" && a.name.trim().toLowerCase() === target
   );
+}
+
+/** The 5 sync-category toggles, one shared setting used by every import/update, single or bulk (registered in the settings.registerMenu block near the bottom of this file). */
+const SYNC_CATEGORY_SETTING_KEYS = {
+  basics: "syncBasics",
+  gameDetails: "syncGameDetails",
+  abilities: "syncAbilities",
+  gear: "syncGear",
+  extras: "syncExtras"
+};
+
+/** Reads the GM's 5 toggles from world settings. Falls back to "everything on" if settings aren't registered yet (shouldn't happen once init has run, but keeps this safe to call early/in tests). */
+function getSyncOptions() {
+  const opts = {};
+  for (const [key, settingKey] of Object.entries(SYNC_CATEGORY_SETTING_KEYS)) {
+    try {
+      opts[key] = game.settings.get(MODULE_ID, settingKey);
+    } catch {
+      opts[key] = DEFAULT_SYNC_OPTIONS[key];
+    }
+  }
+  return opts;
+}
+
+/**
+ * Every sync (single or bulk) locks the actor down to GM-only edit access:
+ * everyone else -- including anyone who previously had an explicit Owner
+ * grant, e.g. the player set up when the actor was first created -- is set
+ * to Observer (can see the sheet, can't change it). This stops a player
+ * editing between syncs from getting silently overwritten by the next one.
+ * GMs always have full access regardless of what's set here; Foundry treats
+ * every GM user as an owner of everything, so this never locks the GM out.
+ */
+function lockedOwnership(existingOwnership = {}) {
+  const OBSERVER = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+  const ownership = { default: OBSERVER };
+  for (const key of Object.keys(existingOwnership)) {
+    if (key === "default") continue;
+    ownership[key] = OBSERVER;
+  }
+  return ownership;
 }
 
 /**
@@ -234,40 +286,60 @@ function parseCharacterJson(text) {
   }
 }
 
-// Every item type this module might create, so a re-sync clears out the old
-// set cleanly before creating the freshly mapped one -- including
-// "tool"/"container", which only show up once a real compendium item (e.g.
-// a Backpack) replaces our old "loot" guess for it, and "class"/"spell"/
-// "feat", so re-syncing doesn't pile up duplicate class levels, spells, or
-// feats/features every time (a class item was previously never cleared).
-const SYNCED_ITEM_TYPES = ["weapon", "equipment", "consumable", "loot", "tool", "container", "class", "spell", "feat"];
+/**
+ * Replace only the item types belonging to categories actually being synced
+ * this run, leaving everything else on the actor untouched -- so e.g.
+ * turning "Gear" off for a sync doesn't delete existing gear, it just skips
+ * touching it. "categories" is the same {basics, gameDetails, abilities,
+ * gear, extras} object mapDdbCharacterToActor() was called with.
+ */
+async function replaceItems(actor, items, categories) {
+  const typesToClear = Object.entries(categories)
+    .filter(([, on]) => on)
+    .flatMap(([category]) => ITEM_TYPES_BY_CATEGORY[category] ?? []);
+  if (typesToClear.length) {
+    await actor.deleteEmbeddedDocuments(
+      "Item",
+      actor.items.filter(i => typesToClear.includes(i.type)).map(i => i.id)
+    );
+  }
+  if (items.length) await actor.createEmbeddedDocuments("Item", items);
+}
 
-/** Replace an actor's class/gear/spell/feat items with a freshly mapped set. */
-async function replaceItems(actor, items) {
-  await actor.deleteEmbeddedDocuments(
-    "Item",
-    actor.items.filter(i => SYNCED_ITEM_TYPES.includes(i.type)).map(i => i.id)
-  );
-  await actor.createEmbeddedDocuments("Item", items);
+/**
+ * Shared core of every sync, single or bulk: maps raw D&D Beyond JSON,
+ * resolves items against compendiums, locks ownership to GM-only, and
+ * writes it all to an existing actor. Returns the actor name for callers
+ * that want to report it (the bulk Sync Panel's result line).
+ */
+async function syncActorFromDdbData(actor, raw, options = getSyncOptions()) {
+  const { actorData, items: basicItems, raw: ddbData, syncedCategories } = mapDdbCharacterToActor(raw, options);
+  const items = await resolveItemsAgainstCompendiums(basicItems);
+  actorData.ownership = lockedOwnership(actor.ownership);
+
+  console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
+  console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
+
+  await actor.update(actorData);
+  await replaceItems(actor, items, syncedCategories);
+  return actorData.name;
 }
 
 /** Create a new actor, or update one matched by name, from pasted JSON text. */
 async function importFromJson(rawText) {
   const raw = parseCharacterJson(rawText);
-  const { actorData, items: basicItems, raw: ddbData } = mapDdbCharacterToActor(raw);
-  const items = await resolveItemsAgainstCompendiums(basicItems);
-
-  console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
-  console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
-
-  const existing = findExistingActor(actorData.name);
+  const options = getSyncOptions();
+  const existing = findExistingActor((raw?.data ?? raw)?.name ?? "");
 
   if (existing) {
-    await existing.update(actorData);
-    await replaceItems(existing, items);
-    ui.notifications.info(game.i18n.format("DDBLI.ImportUpdated", { name: actorData.name }));
+    const name = await syncActorFromDdbData(existing, raw, options);
+    ui.notifications.info(game.i18n.format("DDBLI.ImportUpdated", { name }));
     existing.sheet.render(true);
   } else {
+    const { actorData, items: basicItems, syncedCategories } = mapDdbCharacterToActor(raw, options);
+    const items = await resolveItemsAgainstCompendiums(basicItems);
+    actorData.ownership = lockedOwnership();
+    console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
     const actor = await Actor.create(actorData);
     await actor.createEmbeddedDocuments("Item", items);
     ui.notifications.info(game.i18n.format("DDBLI.ImportCreated", { name: actorData.name }));
@@ -278,15 +350,8 @@ async function importFromJson(rawText) {
 /** Convert/re-sync one specific actor (from the right-click menu) from pasted JSON text. */
 async function convertActorFromJson(actor, rawText) {
   const raw = parseCharacterJson(rawText);
-  const { actorData, items: basicItems, raw: ddbData } = mapDdbCharacterToActor(raw);
-  const items = await resolveItemsAgainstCompendiums(basicItems);
-
-  console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
-  console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
-
-  await actor.update(actorData);
-  await replaceItems(actor, items);
-  ui.notifications.info(game.i18n.format("DDBLI.ImportUpdated", { name: actorData.name }));
+  const name = await syncActorFromDdbData(actor, raw);
+  ui.notifications.info(game.i18n.format("DDBLI.ImportUpdated", { name }));
   actor.sheet.render(true);
 }
 
@@ -384,6 +449,145 @@ class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
+/** Builds the script the GM pastes into a D&D Beyond tab's own console. Runs there (real same-origin fetch, real login cookie), fetches every given character ID, and uses the console's own `copy()` helper to put the results on the clipboard -- no script ever runs on D&D Beyond's page except this, and only when the GM explicitly pastes and runs it there themselves. */
+function buildFetchAllScript(characterIds) {
+  return `(async () => {
+  const ids = ${JSON.stringify(characterIds)};
+  const base = ${JSON.stringify(DDB_CHARACTER_JSON_BASE)};
+  const results = [];
+  for (const id of ids) {
+    try {
+      const res = await fetch(base + id, { credentials: "include" });
+      const data = await res.json();
+      results.push({ id, ok: res.ok, data });
+    } catch (err) {
+      results.push({ id, ok: false, error: String(err) });
+    }
+  }
+  copy(JSON.stringify(results));
+  console.log("ddb-live-importer: fetched " + ids.length + " character(s) and copied the results. Switch to Foundry and paste into the Sync Panel.");
+})();`;
+}
+
+/** Applies one {id, ok, data, error} fetch result to whichever linked actor has that D&D Beyond character id. */
+async function syncOneFromFetchResult(entry, linkedActors, options) {
+  const actor = linkedActors.find(
+    a => String(a.getFlag(MODULE_ID, "ddbCharacterId")) === String(entry.id)
+  );
+  if (!actor) throw new Error(`No linked actor found for D&D Beyond character #${entry.id}.`);
+  if (!entry.ok || !entry.data) throw new Error(entry.error || `D&D Beyond fetch failed for #${entry.id}.`);
+  await syncActorFromDdbData(actor, entry.data, options);
+  return actor.name;
+}
+
+class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "ddb-live-importer-sync-panel",
+    classes: ["ddb-live-importer"],
+    window: {
+      title: "DDBLI.SyncPanelTitle",
+      icon: "fa-solid fa-dice-d20",
+      resizable: true
+    },
+    position: { width: 520, height: "auto" },
+    actions: {
+      "open-ddb": DDBSyncPanel.#onOpenDDB,
+      "copy-script": DDBSyncPanel.#onCopyScript,
+      "process-results": DDBSyncPanel.#onProcessResults,
+      "sync-one": DDBSyncPanel.#onSyncOne
+    }
+  };
+
+  static PARTS = {
+    body: { template: `modules/${MODULE_ID}/templates/sync-panel.html` }
+  };
+
+  /** Every actor this module has already linked to a D&D Beyond character id. */
+  #linkedActors() {
+    return game.actors.filter(a => a.type === "character" && a.getFlag(MODULE_ID, "ddbCharacterId"));
+  }
+
+  async _prepareContext(_options) {
+    const linked = this.#linkedActors();
+    return {
+      characterCount: linked.length,
+      characters: linked.map(a => {
+        const lastImported = a.getFlag(MODULE_ID, "lastImported");
+        return {
+          id: a.id,
+          name: a.name,
+          lastSyncedLabel: lastImported ? new Date(lastImported).toLocaleString() : game.i18n.localize("DDBLI.NeverSynced")
+        };
+      }),
+      resultLine: this._resultLine ?? ""
+    };
+  }
+
+  static #onOpenDDB() {
+    window.open(DDB_CAMPAIGNS_URL, "_blank", "noopener");
+  }
+
+  static async #onCopyScript() {
+    const ids = this.#linkedActors()
+      .map(a => a.getFlag(MODULE_ID, "ddbCharacterId"))
+      .filter(Boolean);
+    const script = buildFetchAllScript(ids);
+    try {
+      await navigator.clipboard.writeText(script);
+      ui.notifications.info(game.i18n.localize("DDBLI.ScriptCopied"));
+    } catch (err) {
+      ui.notifications.error(err.message);
+      console.error(`${MODULE_ID} |`, err);
+    }
+  }
+
+  static async #onProcessResults(_event, target) {
+    const textarea = this.element.querySelector('textarea[name="resultsJson"]');
+    const text = textarea?.value ?? "";
+
+    target.disabled = true;
+    try {
+      if (!text.trim()) throw new Error(game.i18n.localize("DDBLI.SyncAllResultsEmpty"));
+      let entries;
+      try {
+        entries = JSON.parse(text);
+      } catch {
+        throw new Error(game.i18n.localize("DDBLI.SyncAllResultsParseFailed"));
+      }
+
+      const linkedActors = this.#linkedActors();
+      const options = getSyncOptions();
+      let done = 0;
+      const failedNames = [];
+      for (const entry of entries) {
+        try {
+          await syncOneFromFetchResult(entry, linkedActors, options);
+          done++;
+        } catch (err) {
+          failedNames.push(`#${entry.id}`);
+          console.error(`${MODULE_ID} |`, err);
+        }
+      }
+
+      this._resultLine = failedNames.length
+        ? `${game.i18n.format("DDBLI.SyncAllResult", { done, failed: failedNames.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: failedNames.join(", ") })}`
+        : game.i18n.format("DDBLI.SyncAllResult", { done, failed: 0 });
+      textarea.value = "";
+      this.render();
+    } catch (err) {
+      ui.notifications.error(err.message);
+      console.error(`${MODULE_ID} |`, err);
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static #onSyncOne(_event, target) {
+    const actor = game.actors.get(target.dataset.actorId);
+    if (actor) new DDBImportDialog(actor).render(true);
+  }
+}
+
 // Footer button in the Actor Directory: create a new actor or update one
 // matched by name.
 Hooks.on("renderActorDirectory", (app, html) => {
@@ -426,6 +630,32 @@ Hooks.on("renderActorDirectory", (app, html) => {
 // is now "visible" and "callback" is now "onClick" (confirmed by reading
 // a real core menu entry's own keys live).
 Hooks.once("init", () => {
+  // The 5 sync-category toggles -- one shared setting used by every
+  // import/update, single or bulk. World-scope so every user (in practice,
+  // only the GM can ever trigger a sync) follows the same toggles.
+  for (const [category, settingKey] of Object.entries(SYNC_CATEGORY_SETTING_KEYS)) {
+    game.settings.register(MODULE_ID, settingKey, {
+      name: `DDBLI.SettingSync${category[0].toUpperCase()}${category.slice(1)}Name`,
+      hint: `DDBLI.SettingSync${category[0].toUpperCase()}${category.slice(1)}Hint`,
+      scope: "world",
+      config: true,
+      type: Boolean,
+      default: DEFAULT_SYNC_OPTIONS[category]
+    });
+  }
+
+  // Sync Panel: a button in this module's row on the Configure Settings
+  // screen, opening the GM panel that lists every linked character and
+  // drives "sync one"/"sync all" (see DDBSyncPanel above).
+  game.settings.registerMenu(MODULE_ID, "syncPanelMenu", {
+    name: "DDBLI.SyncPanelMenuName",
+    label: "DDBLI.SyncPanelMenuLabel",
+    hint: "DDBLI.SyncPanelMenuHint",
+    icon: "fa-solid fa-dice-d20",
+    type: DDBSyncPanel,
+    restricted: true
+  });
+
   const proto = foundry.applications.sidebar.tabs.ActorDirectory.prototype;
   const original = proto._getEntryContextOptions;
 

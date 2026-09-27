@@ -466,81 +466,143 @@ function buildBiography(data) {
 }
 
 /**
- * Top-level entry point. Accepts either the raw {success, data:{...}} DDB
- * response, or an already-unwrapped character object.
+ * The 5 sync categories the GM's settings toggles gate (see the "GM panel"
+ * work added 2026-09-27). Every caller can pass an `options` object picking
+ * which of these to sync; anything left out keeps whatever the actor
+ * already has (Foundry's own `update()` merges partial `system` objects, so
+ * simply not including a key leaves it alone -- confirmed live). Name and
+ * portrait are NOT gated by any toggle: they're the actor's basic identity
+ * and this module's older by-name matching depends on the name being kept
+ * current, so those two always sync regardless of the toggles below.
+ *
+ * - basics: race/background NAME text, gender, age, biography
+ * - gameDetails: class/subclass Items, character level, XP, size, speed
+ * - abilities: ability scores, HP, skill and save proficiencies (AC is
+ *   always left for dnd5e to compute once a real armor item is equipped,
+ *   independent of this toggle)
+ * - gear: inventory Items (weapons/equipment/consumables/etc.) + currency
+ * - extras: spells, feats/class-features/the background feature, as Items
  */
-export function mapDdbCharacterToActor(ddbResponse) {
+export const DEFAULT_SYNC_OPTIONS = Object.freeze({
+  basics: true,
+  gameDetails: true,
+  abilities: true,
+  gear: true,
+  extras: true
+});
+
+/** Item types this module ever creates, grouped by which sync category owns them -- used by ddb-live-importer.js to only clear/replace the categories actually being synced this run, not everything. */
+export const ITEM_TYPES_BY_CATEGORY = Object.freeze({
+  gameDetails: ["class"],
+  gear: ["weapon", "equipment", "consumable", "loot", "tool", "container"],
+  extras: ["spell", "feat"]
+});
+
+/**
+ * Top-level entry point. Accepts either the raw {success, data:{...}} DDB
+ * response, or an already-unwrapped character object. `options` picks which
+ * of the 5 sync categories above to include; omitted categories default to
+ * true (so existing callers/tests that don't pass options still get
+ * everything).
+ */
+export function mapDdbCharacterToActor(ddbResponse, options = {}) {
+  const opts = { ...DEFAULT_SYNC_OPTIONS, ...options };
   const data = ddbResponse?.data ?? ddbResponse;
   if (!data || !data.name) {
     throw new Error("DDBLI: unrecognized D&D Beyond character data (no name found).");
   }
 
+  // Ability scores and total level are needed internally for HP math even
+  // when the "abilities"/"gameDetails" categories are both off (nothing
+  // reads them in that case, but computing them is cheap and keeps this
+  // function simple), so these run unconditionally.
   const scores = effectiveAbilityScores(data);
   const maxHP = computeMaxHP(data, scores.con);
   const speed = data.race?.weightSpeeds?.normal ?? { walk: 30 };
   const size = SIZE_ID_MAP[data.race?.sizeId] ?? "med";
-
   const { skills: skillProfs, saves: saveProfs } = buildSkillsAndSaves(data);
 
-  const abilities = {};
-  for (const key of ABILITY_ORDER) {
-    abilities[key] = { value: scores[key] };
-    if (saveProfs[key]) abilities[key].proficient = saveProfs[key];
+  const system = { details: {}, attributes: {} };
+
+  if (opts.basics) {
+    Object.assign(system.details, {
+      race: data.race?.fullName ?? "",
+      background: data.background?.definition?.name ?? "",
+      gender: data.gender ?? "",
+      age: data.age ? String(data.age) : "",
+      biography: { value: buildBiography(data) }
+    });
   }
 
-  const skills = {};
-  for (const [key, value] of Object.entries(skillProfs)) {
-    skills[key] = { value };
+  if (opts.gameDetails) {
+    Object.assign(system.details, {
+      level: totalLevel(data),
+      xp: { value: data.currentXp ?? 0 }
+    });
+    system.traits = { size };
+    system.attributes.movement = {
+      walk: speed.walk ?? 30,
+      fly: speed.fly ?? 0,
+      swim: speed.swim ?? 0,
+      climb: speed.climb ?? 0,
+      burrow: speed.burrow ?? 0,
+      units: "ft"
+    };
   }
+
+  if (opts.abilities) {
+    const abilities = {};
+    for (const key of ABILITY_ORDER) {
+      abilities[key] = { value: scores[key] };
+      if (saveProfs[key]) abilities[key].proficient = saveProfs[key];
+    }
+    system.abilities = abilities;
+
+    const skills = {};
+    for (const [key, value] of Object.entries(skillProfs)) {
+      skills[key] = { value };
+    }
+    system.skills = skills;
+
+    Object.assign(system.attributes, {
+      hp: {
+        value: maxHP - (data.removedHitPoints ?? 0),
+        max: maxHP,
+        temp: data.temporaryHitPoints ?? 0
+      },
+      // No AC here on purpose: dnd5e computes AC itself from whichever
+      // equipped item has real armor data, once ddb-live-importer.js has
+      // swapped our items for real compendium items (confirmed live
+      // against Po Tato on 2026-09-27 -- equip a real compendium armor
+      // item and dnd5e's own "armored" formula takes over automatically,
+      // no override needed). The nulls below clear any stale override
+      // left by an older version of this module on a re-sync.
+      ac: { flat: null, calc: null }
+    });
+  }
+
+  if (opts.gear) {
+    system.currency = {
+      pp: data.currencies?.pp ?? 0,
+      gp: data.currencies?.gp ?? 0,
+      ep: data.currencies?.ep ?? 0,
+      sp: data.currencies?.sp ?? 0,
+      cp: data.currencies?.cp ?? 0
+    };
+  }
+
+  // Drop the two scaffolding objects if this run's toggles left them empty,
+  // so an `update()` with e.g. gameDetails+abilities both off doesn't send
+  // a pointless `{details: {}, attributes: {}}` (harmless, but noisy in the
+  // console log every import already prints).
+  if (Object.keys(system.details).length === 0) delete system.details;
+  if (Object.keys(system.attributes).length === 0) delete system.attributes;
 
   const actorData = {
     name: data.name,
     type: "character",
     img: data.decorations?.avatarUrl || undefined,
-    system: {
-      abilities,
-      skills,
-      attributes: {
-        hp: {
-          value: maxHP - (data.removedHitPoints ?? 0),
-          max: maxHP,
-          temp: data.temporaryHitPoints ?? 0
-        },
-        // No AC here on purpose: dnd5e computes AC itself from whichever
-        // equipped item has real armor data, once ddb-live-importer.js has
-        // swapped our items for real compendium items (confirmed live
-        // against Po Tato on 2026-09-27 -- equip a real compendium armor
-        // item and dnd5e's own "armored" formula takes over automatically,
-        // no override needed). The nulls below clear any stale override
-        // left by an older version of this module on a re-sync.
-        ac: { flat: null, calc: null },
-        movement: {
-          walk: speed.walk ?? 30,
-          fly: speed.fly ?? 0,
-          swim: speed.swim ?? 0,
-          climb: speed.climb ?? 0,
-          burrow: speed.burrow ?? 0,
-          units: "ft"
-        }
-      },
-      details: {
-        race: data.race?.fullName ?? "",
-        background: data.background?.definition?.name ?? "",
-        level: totalLevel(data),
-        xp: { value: data.currentXp ?? 0 },
-        gender: data.gender ?? "",
-        age: data.age ? String(data.age) : "",
-        biography: { value: buildBiography(data) }
-      },
-      traits: { size },
-      currency: {
-        pp: data.currencies?.pp ?? 0,
-        gp: data.currencies?.gp ?? 0,
-        ep: data.currencies?.ep ?? 0,
-        sp: data.currencies?.sp ?? 0,
-        cp: data.currencies?.cp ?? 0
-      }
-    },
+    system,
     flags: {
       [MODULE_ID]: {
         ddbCharacterId: data.id,
@@ -549,12 +611,10 @@ export function mapDdbCharacterToActor(ddbResponse) {
     }
   };
 
-  const items = [
-    ...buildClassItems(data),
-    ...buildGearItems(data),
-    ...buildSpellItems(data),
-    ...buildFeatureItems(data)
-  ];
+  const items = [];
+  if (opts.gameDetails) items.push(...buildClassItems(data));
+  if (opts.gear) items.push(...buildGearItems(data));
+  if (opts.extras) items.push(...buildSpellItems(data), ...buildFeatureItems(data));
 
-  return { actorData, items, raw: data };
+  return { actorData, items, raw: data, syncedCategories: opts };
 }

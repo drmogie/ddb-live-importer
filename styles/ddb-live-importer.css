@@ -67,3 +67,56 @@
   width: 100%;
   font-weight: bold;
 }
+
+.ddbli-sync-panel .ddbli-panel-section {
+  margin-bottom: 16px;
+}
+
+.ddbli-sync-panel .ddbli-panel-section h3 {
+  margin: 0 0 6px 0;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #999);
+}
+
+.ddbli-sync-panel .ddbli-panel-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.ddbli-sync-panel .ddbli-panel-actions button {
+  flex: 1;
+}
+
+.ddbli-sync-panel .ddbli-results {
+  margin-bottom: 10px;
+}
+
+.ddbli-sync-panel .ddbli-results label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.ddbli-sync-panel .ddbli-results textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.85em;
+  resize: vertical;
+}
+
+.ddbli-sync-panel .ddbli-result-line {
+  margin: 8px 0 0 0;
+  font-weight: bold;
+}
+
+.ddbli-sync-panel .ddbli-char-table {
+  width: 100%;
+}
+
+.ddbli-sync-panel .ddbli-char-table th {
+  text-align: left;
+}
+
+.ddbli-sync-panel .ddbli-char-table td {
+  padding: 3px 4px;
+}
