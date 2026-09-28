@@ -101,6 +101,44 @@ function lockedOwnership(existingOwnership = {}) {
 }
 
 /**
+ * Reads the optional DDB Scraper Proxy base URL from settings (e.g.
+ * "https://ddb-proxy.mogie.io") -- see the "ddb-scraper-proxy" Home
+ * Assistant add-on. Empty string (default) means "not configured", and
+ * every caller below treats that the same as "the proxy isn't reachable" --
+ * falls back to the manual console-paste flow, no error shown.
+ */
+function proxyBaseUrl() {
+  try {
+    const raw = game.settings.get(MODULE_ID, "ddbProxyUrl") ?? "";
+    return raw.trim().replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Tries to fetch one character's raw JSON through the proxy. Returns the
+ * parsed data on success, or null on ANY failure -- not configured, network
+ * error, or the proxy's own pass-through of D&D Beyond's error (typically
+ * because the character is private, which the proxy can never get around
+ * since it has no login of its own). null always means "fall back to the
+ * manual flow," never a thrown error -- this is meant to be tried eagerly
+ * and cheaply, not to be the only path.
+ */
+async function fetchCharacterViaProxy(characterId) {
+  const base = proxyBaseUrl();
+  if (!base || !characterId) return null;
+  try {
+    const res = await fetch(`${base}/character/${characterId}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn(`${MODULE_ID} | proxy fetch failed`, err);
+    return null;
+  }
+}
+
+/**
  * Item compendiums to search for a real match, in priority order. Confirmed
  * live against Po Tato's real gear on 2026-09-27: his weapons, armor, and
  * magic items (Vicious Glaive, Belt of Fire Giant Strength, Bag of Holding)
@@ -409,11 +447,41 @@ class DDBImportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     await super._onRender(context, options);
     const input = this.element.querySelector('input[name="ddbUrl"]');
     const jsonBtn = this.element.querySelector('[data-action="open-json"]');
+    const textarea = this.element.querySelector('textarea[name="ddbJson"]');
+    const statusEl = this.element.querySelector(".ddbli-proxy-status");
     if (!input || !jsonBtn) return;
+
+    let debounceTimer = null;
+
+    // Tries the DDB Scraper Proxy for this id (if one's configured) a beat
+    // after the GM stops typing/right after paste. On success, fills the
+    // paste box automatically -- the GM just clicks Import Character, no
+    // "open D&D Beyond / copy / paste" steps needed at all. On failure
+    // (proxy not configured, unreachable, or the character's private),
+    // says so and leaves the normal manual flow exactly as it was.
+    const tryProxy = async (id) => {
+      if (!statusEl || !textarea) return;
+      statusEl.hidden = false;
+      statusEl.textContent = game.i18n.localize("DDBLI.ProxyStatusChecking");
+      const data = await fetchCharacterViaProxy(id);
+      if (this.characterId !== id) return; // id changed while this was in flight
+      if (data) {
+        textarea.value = JSON.stringify(data);
+        statusEl.textContent = game.i18n.localize("DDBLI.ProxyStatusFetched");
+      } else {
+        statusEl.textContent = game.i18n.localize("DDBLI.ProxyStatusUnavailable");
+      }
+    };
 
     const sync = () => {
       this.characterId = parseCharacterId(input.value);
       jsonBtn.disabled = !this.characterId;
+      clearTimeout(debounceTimer);
+      if (this.characterId && proxyBaseUrl()) {
+        debounceTimer = setTimeout(() => tryProxy(this.characterId), 400);
+      } else if (statusEl) {
+        statusEl.hidden = true;
+      }
     };
     input.addEventListener("input", sync);
     sync();
@@ -493,6 +561,7 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       "open-ddb": DDBSyncPanel.#onOpenDDB,
       "copy-script": DDBSyncPanel.#onCopyScript,
+      "auto-fetch-proxy": DDBSyncPanel.#onAutoFetchProxy,
       "process-results": DDBSyncPanel.#onProcessResults,
       "sync-one": DDBSyncPanel.#onSyncOne
     }
@@ -511,6 +580,7 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     const linked = this.#linkedActors();
     return {
       characterCount: linked.length,
+      proxyConfigured: !!proxyBaseUrl(),
       characters: linked.map(a => {
         const lastImported = a.getFlag(MODULE_ID, "lastImported");
         return {
@@ -538,6 +608,47 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     } catch (err) {
       ui.notifications.error(err.message);
       console.error(`${MODULE_ID} |`, err);
+    }
+  }
+
+  /**
+   * "Sync All" via the proxy: for every linked character, tries the proxy
+   * first (works for anything set to Public on D&D Beyond) and syncs it
+   * immediately on success -- no console-paste step at all for those. A
+   * character the proxy can't get (private, or the proxy unreachable) is
+   * left untouched and named in the result line, same as any Sync All
+   * partial failure -- the console-paste flow below still covers it.
+   */
+  static async #onAutoFetchProxy(_event, target) {
+    target.disabled = true;
+    try {
+      const linkedActors = this.#linkedActors();
+      const options = getSyncOptions();
+      let done = 0;
+      const remainingNames = [];
+
+      for (const actor of linkedActors) {
+        const characterId = actor.getFlag(MODULE_ID, "ddbCharacterId");
+        const data = await fetchCharacterViaProxy(characterId);
+        if (!data) {
+          remainingNames.push(actor.name);
+          continue;
+        }
+        try {
+          await syncActorFromDdbData(actor, data, options);
+          done++;
+        } catch (err) {
+          remainingNames.push(actor.name);
+          console.error(`${MODULE_ID} |`, err);
+        }
+      }
+
+      this._resultLine = remainingNames.length
+        ? `${game.i18n.format("DDBLI.ProxyAutoFetchResult", { done, remaining: remainingNames.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: remainingNames.join(", ") })}`
+        : game.i18n.format("DDBLI.ProxyAutoFetchResult", { done, remaining: 0 });
+      this.render();
+    } finally {
+      target.disabled = false;
     }
   }
 
@@ -643,6 +754,19 @@ Hooks.once("init", () => {
       default: DEFAULT_SYNC_OPTIONS[category]
     });
   }
+
+  // Optional DDB Scraper Proxy base URL (see the companion Home Assistant
+  // add-on). Blank by default -- every caller treats blank the same as
+  // "not reachable" and falls back to the manual console-paste flow, so
+  // leaving this empty is a fully supported, unchanged experience.
+  game.settings.register(MODULE_ID, "ddbProxyUrl", {
+    name: "DDBLI.SettingProxyUrlName",
+    hint: "DDBLI.SettingProxyUrlHint",
+    scope: "world",
+    config: true,
+    type: String,
+    default: ""
+  });
 
   // Sync Panel: a button in this module's row on the Configure Settings
   // screen, opening the GM panel that lists every linked character and

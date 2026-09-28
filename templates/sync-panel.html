@@ -1,6 +1,15 @@
 <form class="ddbli-sync-panel">
   <section class="ddbli-panel-section">
     <h3>{{localize "DDBLI.SyncAllHeading"}}</h3>
+
+    {{#if proxyConfigured}}
+    <button type="button" class="ddbli-proxy-btn" data-action="auto-fetch-proxy">
+      <i class="fa-solid fa-bolt"></i>
+      {{localize "DDBLI.ProxyAutoFetch"}}
+    </button>
+    <p class="ddbli-proxy-hint">{{localize "DDBLI.ProxyAutoFetchHint"}}</p>
+    {{/if}}
+
     <ol class="ddbli-steps">
       <li>{{localize "DDBLI.SyncAllStep1"}}</li>
       <li>{{localize "DDBLI.SyncAllStep2"}}</li>

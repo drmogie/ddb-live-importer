@@ -120,3 +120,23 @@
 .ddbli-sync-panel .ddbli-char-table td {
   padding: 3px 4px;
 }
+
+.ddb-live-importer .ddbli-proxy-status {
+  margin: -6px 0 10px 0;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--color-text-dark-secondary, #777);
+}
+
+.ddbli-sync-panel .ddbli-proxy-btn {
+  width: 100%;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+.ddbli-sync-panel .ddbli-proxy-hint {
+  margin: 0 0 10px 0;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--color-text-dark-secondary, #777);
+}

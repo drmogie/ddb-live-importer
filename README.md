@@ -77,6 +77,22 @@ by this -- Foundry always treats GM users as full owners of everything.
 
 ## Changelog
 
+- **2026.09.27.12** -- Added optional support for the companion **DDB
+  Scraper Proxy** Home Assistant add-on. Set its URL in this module's
+  settings (blank by default, nothing changes if you leave it blank) and:
+  - The **Import/Update dialog** tries it automatically the moment a valid
+    character ID is entered -- on a Public character, the paste box fills
+    itself in and there's no "open D&D Beyond / copy / paste" at all, just
+    click Import Character.
+  - The **Sync Panel** gets an **Auto-Fetch via Proxy** button that does
+    this for every linked character at once. Anything the proxy can't get
+    (private characters, or the proxy not configured/reachable) is left
+    for the existing console-paste "Sync All" flow, named in the result
+    line so you know which ones still need it.
+  - This never replaces the manual flow -- it's purely an automatic
+    shortcut for characters set to Public, tried first, with the exact
+    same manual steps as a fallback whenever it can't.
+
 - **2026.09.27.11** -- Added the GM panel: settings toggles, a Sync Panel,
   and a GM-only lock on synced actors.
   - **5 sync-category toggles** (Basics, Game Details, Abilities, Gear,

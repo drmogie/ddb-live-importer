@@ -22,7 +22,6 @@
   "DDBLI.ImportFailedParse": "That doesn't look like D&D Beyond character data. Did you copy the whole JSON page (Ctrl+A, Ctrl+C) and paste it (Ctrl+V) into the box?",
   "DDBLI.ImportFailedEmpty": "The box is empty. Copy the character JSON page (Ctrl+A, Ctrl+C), then click in the box and press Ctrl+V.",
   "DDBLI.GMOnly": "Only the GM can import D&D Beyond characters.",
-
   "DDBLI.SettingSyncBasicsName": "Sync: Basics",
   "DDBLI.SettingSyncBasicsHint": "Race, background name, gender, age, biography. (Name and portrait always sync regardless of this.)",
   "DDBLI.SettingSyncGameDetailsName": "Sync: Game Details",
@@ -37,7 +36,6 @@
   "DDBLI.SyncPanelMenuLabel": "Open Sync Panel",
   "DDBLI.SyncPanelMenuHint": "Sync every D&D Beyond-linked character in this world, all in one place, instead of opening each one by one.",
   "DDBLI.SyncPanelTitle": "D&D Beyond Sync Panel",
-
   "DDBLI.SyncAllHeading": "Sync All",
   "DDBLI.SyncAllStep1": "1. Click \"Open D&D Beyond\" below. It opens a new tab, already logged in as you.",
   "DDBLI.SyncAllStep2": "2. Click \"Copy Fetch Script\" here first.",
@@ -57,5 +55,13 @@
   "DDBLI.ColName": "Name",
   "DDBLI.ColLastSynced": "Last Synced",
   "DDBLI.SyncOne": "Sync",
-  "DDBLI.NeverSynced": "Never"
+  "DDBLI.NeverSynced": "Never",
+  "DDBLI.SettingProxyUrlName": "DDB Scraper Proxy URL (optional)",
+  "DDBLI.SettingProxyUrlHint": "Address of your DDB Scraper Proxy add-on (e.g. https://ddb-proxy.mogie.io), with no trailing slash. When set, importing/syncing a character tries this first and auto-fills the paste box for anything set to Public on D&D Beyond -- no copy/paste needed for those. Leave blank to always use the manual flow.",
+  "DDBLI.ProxyStatusChecking": "Checking the proxy...",
+  "DDBLI.ProxyStatusFetched": "Fetched automatically via proxy -- click \"Import Character\" below.",
+  "DDBLI.ProxyStatusUnavailable": "Not available via the proxy (likely private) -- use the manual steps below.",
+  "DDBLI.ProxyAutoFetch": "Auto-Fetch via Proxy",
+  "DDBLI.ProxyAutoFetchHint": "Fetches every linked character through your proxy automatically. Only characters set to Private on D&D Beyond need the console steps below.",
+  "DDBLI.ProxyAutoFetchResult": "{done} auto-fetched, {remaining} still need the manual step."
 }
