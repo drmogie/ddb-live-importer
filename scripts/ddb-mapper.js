@@ -502,19 +502,40 @@ export const DEFAULT_SYNC_OPTIONS = Object.freeze({
   abilities: true,
   gear: true,
   extras: true,
+  // Individual fields nested under each category above -- every one only
+  // has an effect when its own category master is also true (turning a
+  // category off still turns everything below it off; turning it on lets
+  // these fine-tune exactly which of its fields actually sync). Added
+  // 2026-09-27 per user request for a tabbed Sync Settings window: one tab
+  // per category, each with its own "Sync All (Category)" master plus
+  // this list of individual items.
   basicsName: true,
   basicsRace: true,
   basicsBackground: true,
   basicsGender: true,
   basicsAge: true,
-  basicsBiography: true
+  basicsBiography: true,
+  detailsClass: true,
+  detailsLevel: true,
+  detailsXp: true,
+  detailsSize: true,
+  detailsSpeed: true,
+  abilitiesScores: true,
+  abilitiesHp: true,
+  abilitiesSkills: true,
+  abilitiesSaves: true,
+  gearItems: true,
+  gearCurrency: true,
+  extrasSpells: true,
+  extrasFeatures: true
 });
 
-/** Item types this module ever creates, grouped by which sync category owns them -- used by ddb-live-importer.js to only clear/replace the categories actually being synced this run, not everything. */
+/** Item types this module ever creates, grouped by which individual sync field owns them -- used by ddb-live-importer.js to only clear/replace the item types actually being synced this run, not everything. Keyed by the FIELD-level option (e.g. "detailsClass", not "gameDetails") since that's the flag that actually controls whether that item type gets rebuilt below. */
 export const ITEM_TYPES_BY_CATEGORY = Object.freeze({
-  gameDetails: ["class"],
-  gear: ["weapon", "equipment", "consumable", "loot", "tool", "container"],
-  extras: ["spell", "feat"]
+  detailsClass: ["class"],
+  gearItems: ["weapon", "equipment", "consumable", "loot", "tool", "container"],
+  extrasSpells: ["spell"],
+  extrasFeatures: ["feat"]
 });
 
 /**
@@ -552,53 +573,60 @@ export function mapDdbCharacterToActor(ddbResponse, options = {}) {
   }
 
   if (opts.gameDetails) {
-    Object.assign(system.details, {
-      level: totalLevel(data),
-      xp: { value: data.currentXp ?? 0 }
-    });
-    system.traits = { size };
-    system.attributes.movement = {
-      walk: speed.walk ?? 30,
-      fly: speed.fly ?? 0,
-      swim: speed.swim ?? 0,
-      climb: speed.climb ?? 0,
-      burrow: speed.burrow ?? 0,
-      units: "ft"
-    };
+    if (opts.detailsLevel) system.details.level = totalLevel(data);
+    if (opts.detailsXp) system.details.xp = { value: data.currentXp ?? 0 };
+    if (opts.detailsSize) system.traits = { size };
+    if (opts.detailsSpeed) {
+      system.attributes.movement = {
+        walk: speed.walk ?? 30,
+        fly: speed.fly ?? 0,
+        swim: speed.swim ?? 0,
+        climb: speed.climb ?? 0,
+        burrow: speed.burrow ?? 0,
+        units: "ft"
+      };
+    }
   }
 
   if (opts.abilities) {
-    const abilities = {};
-    for (const key of ABILITY_ORDER) {
-      abilities[key] = { value: scores[key] };
-      if (saveProfs[key]) abilities[key].proficient = saveProfs[key];
+    if (opts.abilitiesScores || opts.abilitiesSaves) {
+      const abilities = {};
+      for (const key of ABILITY_ORDER) {
+        abilities[key] = {};
+        if (opts.abilitiesScores) abilities[key].value = scores[key];
+        if (opts.abilitiesSaves && saveProfs[key]) abilities[key].proficient = saveProfs[key];
+      }
+      system.abilities = abilities;
     }
-    system.abilities = abilities;
 
-    const skills = {};
-    for (const [key, value] of Object.entries(skillProfs)) {
-      skills[key] = { value };
+    if (opts.abilitiesSkills) {
+      const skills = {};
+      for (const [key, value] of Object.entries(skillProfs)) {
+        skills[key] = { value };
+      }
+      system.skills = skills;
     }
-    system.skills = skills;
 
-    Object.assign(system.attributes, {
-      hp: {
-        value: maxHP - (data.removedHitPoints ?? 0),
-        max: maxHP,
-        temp: data.temporaryHitPoints ?? 0
-      },
-      // No AC here on purpose: dnd5e computes AC itself from whichever
-      // equipped item has real armor data, once ddb-live-importer.js has
-      // swapped our items for real compendium items (confirmed live
-      // against Po Tato on 2026-09-27 -- equip a real compendium armor
-      // item and dnd5e's own "armored" formula takes over automatically,
-      // no override needed). The nulls below clear any stale override
-      // left by an older version of this module on a re-sync.
-      ac: { flat: null, calc: null }
-    });
+    if (opts.abilitiesHp) {
+      Object.assign(system.attributes, {
+        hp: {
+          value: maxHP - (data.removedHitPoints ?? 0),
+          max: maxHP,
+          temp: data.temporaryHitPoints ?? 0
+        },
+        // No AC here on purpose: dnd5e computes AC itself from whichever
+        // equipped item has real armor data, once ddb-live-importer.js has
+        // swapped our items for real compendium items (confirmed live
+        // against Po Tato on 2026-09-27 -- equip a real compendium armor
+        // item and dnd5e's own "armored" formula takes over automatically,
+        // no override needed). The nulls below clear any stale override
+        // left by an older version of this module on a re-sync.
+        ac: { flat: null, calc: null }
+      });
+    }
   }
 
-  if (opts.gear) {
+  if (opts.gear && opts.gearCurrency) {
     system.currency = {
       pp: data.currencies?.pp ?? 0,
       gp: data.currencies?.gp ?? 0,
@@ -629,9 +657,10 @@ export function mapDdbCharacterToActor(ddbResponse, options = {}) {
   };
 
   const items = [];
-  if (opts.gameDetails) items.push(...buildClassItems(data));
-  if (opts.gear) items.push(...buildGearItems(data));
-  if (opts.extras) items.push(...buildSpellItems(data), ...buildFeatureItems(data));
+  if (opts.gameDetails && opts.detailsClass) items.push(...buildClassItems(data));
+  if (opts.gear && opts.gearItems) items.push(...buildGearItems(data));
+  if (opts.extras && opts.extrasSpells) items.push(...buildSpellItems(data));
+  if (opts.extras && opts.extrasFeatures) items.push(...buildFeatureItems(data));
 
   return { actorData, items, raw: data, syncedCategories: opts };
 }

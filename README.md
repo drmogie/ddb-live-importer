@@ -40,45 +40,54 @@ in place. Otherwise a new one is created.
 
 ## Settings & GM Sync Panel
 
-Every sync (single character or bulk) shares the same settings, found in
-Foundry's **Configure Settings** screen under this module's row, top to
-bottom:
+The GM gets two windows now, plus one setting left on Foundry's native
+screen:
 
-- **DDB Scraper Proxy URL** (optional) -- see the proxy section below.
-- **Sync: Basics** -- the master toggle for this category, immediately
-  followed by its own individual fields: **Name**, **Race**, **Background**,
-  **Gender**, **Age**, **Biography**. Turning Basics off still turns all six
-  off; turning it on lets you fine-tune exactly which of the six actually
-  sync (e.g. turn off just Name to freeze one you renamed by hand in
-  Foundry). A brand-new import always gets the D&D Beyond name once
-  regardless, since a new actor needs one to be created at all. Portrait
-  always syncs regardless of any of this.
-- **4 more category toggles** -- Game Details, Abilities, Gear, Extras.
-  Turn any of these off and that category is left alone on future syncs
-  (nothing is deleted, it's just skipped).
-- **Sync Panel** button -- opens a GM-only panel listing every character
-  already linked to D&D Beyond as a grid of clickable portraits, with:
+- **Configure Settings screen** -- just the **DDB Scraper Proxy URL**
+  (optional, see the proxy section below). Everything else moved off this
+  screen and into the Sync Panel / Sync Settings windows below.
+- **Sync Panel** button -- the everyday window. A grid of clickable
+  portraits for every character already linked to D&D Beyond:
   - Click one or more portraits to select them (selected = amber glow),
     then click **Sync Selected** to sync just that set -- tries the proxy
     for each first, and if exactly one selected character still needs the
     manual step, its Import/Update dialog opens automatically.
-  - A **Sync All** section at the top for bulk-updating every linked
-    character in one go (see below).
-  - Each character's last-synced time (shown when you hover a portrait),
-    and a result line ("3 done, 1 failed") after a Sync Selected or Sync
-    All run.
+  - A result line under the button after a Sync Selected run, e.g. "2
+    synced of 3 character(s), 1 still need the manual step" -- so you can
+    see both how many actually synced and how many were attempted.
+  - Hover a portrait to see that character's last-synced time.
+  - A small **Sync Settings** button at the bottom opens the second
+    window below.
+- **Sync Settings** button (or the small button inside the Sync Panel) --
+  the advanced window, rarely needed day to day. Five tabs across the top
+  -- **Basics**, **Details**, **Abilities**, **Gear**, **Extras** -- each
+  with:
+  - A **Sync All (This Category)** master toggle for that tab.
+  - Every individual field belonging to that category listed underneath
+    it (e.g. under Basics: Name, Race, Background, Gender, Age,
+    Biography; under Gear: Items, Currency). Turning a category's master
+    toggle off still turns all of its fields off; turning it on lets you
+    fine-tune exactly which fields in that category actually sync -- e.g.
+    turn off just Name to freeze one you renamed by hand in Foundry,
+    without losing the rest of Basics. A brand-new import always gets the
+    D&D Beyond name once regardless, since a new actor needs one to be
+    created at all. Portrait always syncs regardless of any of this.
+  - Below the tabs, the same **Sync All** bulk/manual section as before
+    (Open D&D Beyond, Copy Fetch Script, paste results, Sync All) for
+    updating every linked character in one go -- see the steps below.
 
 **Sync All**, step by step: D&D Beyond blocks any other website (including
 your Foundry server) from fetching its data directly -- confirmed, this
-isn't something this module can work around. So instead:
-1. Click **Open D&D Beyond** in the Sync Panel -- opens a tab, already
-   logged in as you.
-2. Click **Copy Fetch Script** in the Sync Panel first.
+isn't something this module can work around. So instead, in the **Sync
+Settings** window:
+1. Click **Open D&D Beyond** -- opens a tab, already logged in as you.
+2. Click **Copy Fetch Script** first.
 3. On the D&D Beyond tab, press **F12** to open the console, paste
    (Ctrl+V), and press **Enter**. It fetches every linked character using
    your real login and copies the results to your clipboard.
-4. Back in the Sync Panel, click in the results box, press **Ctrl+V**,
-   then click **Sync All**.
+4. Back in the Sync Settings window, click in the results box, press
+   **Ctrl+V**, then click **Sync All**. The result line shows something
+   like "5 synced of 6 character(s), 1 still need the manual step."
 
 **Every sync locks the actor to GM-only edit access.** After a sync
 (single or Sync All), that actor's permissions are set so only the GM can
@@ -88,6 +97,27 @@ from getting silently overwritten by the next sync. GMs are never affected
 by this -- Foundry always treats GM users as full owners of everything.
 
 ## Changelog
+
+- **2026.09.27.14** -- Split the Sync Panel into two windows, expanded the
+  individual-field split to every category, and added total counts to the
+  result lines.
+  - **Two windows**: the Configure Settings screen now holds only the
+    Proxy URL. **Sync Panel** is the everyday window -- just the portrait
+    grid, Sync Selected, and the result line. A new **Sync Settings**
+    window holds all the category/field toggles and the manual Sync All
+    (console-paste) flow, reached from a small button inside the Sync
+    Panel or its own Configure Settings entry.
+  - **Tabbed Sync Settings**: five tabs -- Basics, Details, Abilities,
+    Gear, Extras -- each with its own "Sync All (This Category)" master
+    toggle plus every individual field in that category (Details: Class,
+    Level, XP, Size, Speed; Abilities: Scores, HP, Skills, Saves; Gear:
+    Items, Currency; Extras: Spells, Features), matching the field-level
+    control Basics already had. Turning a category off still turns all
+    of its fields off, same as before.
+  - **Result lines now show the total attempted**, not just done/failed,
+    e.g. "2 synced of 3 character(s), 1 still need the manual step" for
+    Sync Selected and Auto-Fetch, and "5 synced of 6 character(s), 1
+    still need the manual step" for Sync All.
 
 - **2026.09.27.13** -- Sync Panel redesign, an individual-field split for
   Basics, and a couple of import quality-of-life fixes.

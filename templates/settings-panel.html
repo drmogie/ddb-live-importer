@@ -1,0 +1,193 @@
+<form class="ddbli-sync-panel">
+  <section class="ddbli-panel-section">
+    <h3>{{localize "DDBLI.SyncCategoriesHeading"}}</h3>
+
+    <nav class="ddbli-tabs">
+      <button type="button" class="ddbli-tab-btn{{#if isBasicsTab}} active{{/if}}" data-action="switch-tab" data-tab="basics">{{localize "DDBLI.TabBasics"}}</button>
+      <button type="button" class="ddbli-tab-btn{{#if isDetailsTab}} active{{/if}}" data-action="switch-tab" data-tab="gameDetails">{{localize "DDBLI.TabDetails"}}</button>
+      <button type="button" class="ddbli-tab-btn{{#if isAbilitiesTab}} active{{/if}}" data-action="switch-tab" data-tab="abilities">{{localize "DDBLI.TabAbilities"}}</button>
+      <button type="button" class="ddbli-tab-btn{{#if isGearTab}} active{{/if}}" data-action="switch-tab" data-tab="gear">{{localize "DDBLI.TabGear"}}</button>
+      <button type="button" class="ddbli-tab-btn{{#if isExtrasTab}} active{{/if}}" data-action="switch-tab" data-tab="extras">{{localize "DDBLI.TabExtras"}}</button>
+    </nav>
+
+    {{#if isBasicsTab}}
+    <div class="ddbli-tab-panel">
+      <label class="ddbli-toggle-row ddbli-toggle-master">
+        <input type="checkbox" data-setting="syncBasics" {{#if syncBasics}}checked{{/if}}>
+        {{localize "DDBLI.SyncAllForCategory"}}
+      </label>
+      <p class="ddbli-toggle-hint">{{localize "DDBLI.SettingSyncBasicsHint"}}</p>
+      <div class="ddbli-toggle-subgroup">
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncBasicsFieldName" {{#if syncBasicsFieldName}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncBasicsFieldNameName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncBasicsFieldRace" {{#if syncBasicsFieldRace}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncBasicsFieldRaceName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncBasicsFieldBackground" {{#if syncBasicsFieldBackground}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncBasicsFieldBackgroundName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncBasicsFieldGender" {{#if syncBasicsFieldGender}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncBasicsFieldGenderName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncBasicsFieldAge" {{#if syncBasicsFieldAge}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncBasicsFieldAgeName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncBasicsFieldBiography" {{#if syncBasicsFieldBiography}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncBasicsFieldBiographyName"}}
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if isDetailsTab}}
+    <div class="ddbli-tab-panel">
+      <label class="ddbli-toggle-row ddbli-toggle-master">
+        <input type="checkbox" data-setting="syncGameDetails" {{#if syncGameDetails}}checked{{/if}}>
+        {{localize "DDBLI.SyncAllForCategory"}}
+      </label>
+      <p class="ddbli-toggle-hint">{{localize "DDBLI.SettingSyncGameDetailsHint"}}</p>
+      <div class="ddbli-toggle-subgroup">
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncDetailsFieldClass" {{#if syncDetailsFieldClass}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncDetailsFieldClassName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncDetailsFieldLevel" {{#if syncDetailsFieldLevel}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncDetailsFieldLevelName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncDetailsFieldXp" {{#if syncDetailsFieldXp}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncDetailsFieldXpName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncDetailsFieldSize" {{#if syncDetailsFieldSize}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncDetailsFieldSizeName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncDetailsFieldSpeed" {{#if syncDetailsFieldSpeed}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncDetailsFieldSpeedName"}}
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if isAbilitiesTab}}
+    <div class="ddbli-tab-panel">
+      <label class="ddbli-toggle-row ddbli-toggle-master">
+        <input type="checkbox" data-setting="syncAbilities" {{#if syncAbilities}}checked{{/if}}>
+        {{localize "DDBLI.SyncAllForCategory"}}
+      </label>
+      <p class="ddbli-toggle-hint">{{localize "DDBLI.SettingSyncAbilitiesHint"}}</p>
+      <div class="ddbli-toggle-subgroup">
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncAbilitiesFieldScores" {{#if syncAbilitiesFieldScores}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncAbilitiesFieldScoresName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncAbilitiesFieldHp" {{#if syncAbilitiesFieldHp}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncAbilitiesFieldHpName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncAbilitiesFieldSkills" {{#if syncAbilitiesFieldSkills}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncAbilitiesFieldSkillsName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncAbilitiesFieldSaves" {{#if syncAbilitiesFieldSaves}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncAbilitiesFieldSavesName"}}
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if isGearTab}}
+    <div class="ddbli-tab-panel">
+      <label class="ddbli-toggle-row ddbli-toggle-master">
+        <input type="checkbox" data-setting="syncGear" {{#if syncGear}}checked{{/if}}>
+        {{localize "DDBLI.SyncAllForCategory"}}
+      </label>
+      <p class="ddbli-toggle-hint">{{localize "DDBLI.SettingSyncGearHint"}}</p>
+      <div class="ddbli-toggle-subgroup">
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncGearFieldItems" {{#if syncGearFieldItems}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncGearFieldItemsName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncGearFieldCurrency" {{#if syncGearFieldCurrency}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncGearFieldCurrencyName"}}
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if isExtrasTab}}
+    <div class="ddbli-tab-panel">
+      <label class="ddbli-toggle-row ddbli-toggle-master">
+        <input type="checkbox" data-setting="syncExtras" {{#if syncExtras}}checked{{/if}}>
+        {{localize "DDBLI.SyncAllForCategory"}}
+      </label>
+      <p class="ddbli-toggle-hint">{{localize "DDBLI.SettingSyncExtrasHint"}}</p>
+      <div class="ddbli-toggle-subgroup">
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncExtrasFieldSpells" {{#if syncExtrasFieldSpells}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncExtrasFieldSpellsName"}}
+        </label>
+        <label class="ddbli-toggle-row">
+          <input type="checkbox" data-setting="syncExtrasFieldFeatures" {{#if syncExtrasFieldFeatures}}checked{{/if}}>
+          {{localize "DDBLI.SettingSyncExtrasFieldFeaturesName"}}
+        </label>
+      </div>
+    </div>
+    {{/if}}
+  </section>
+
+  <section class="ddbli-panel-section">
+    <h3>{{localize "DDBLI.SyncAllHeading"}}</h3>
+
+    {{#if proxyConfigured}}
+    <button type="button" class="ddbli-proxy-btn" data-action="auto-fetch-proxy">
+      <i class="fa-solid fa-bolt"></i>
+      {{localize "DDBLI.ProxyAutoFetch"}}
+    </button>
+    <p class="ddbli-proxy-hint">{{localize "DDBLI.ProxyAutoFetchHint"}}</p>
+    {{/if}}
+
+    <ol class="ddbli-steps">
+      <li>{{localize "DDBLI.SyncAllStep1"}}</li>
+      <li>{{localize "DDBLI.SyncAllStep2"}}</li>
+      <li>{{localize "DDBLI.SyncAllStep3"}}</li>
+      <li>{{localize "DDBLI.SyncAllStep4"}}</li>
+    </ol>
+
+    <div class="ddbli-panel-actions">
+      <button type="button" data-action="open-ddb">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        {{localize "DDBLI.OpenDDB"}}
+      </button>
+      <button type="button" data-action="copy-script" {{#unless characterCount}}disabled{{/unless}}>
+        <i class="fa-solid fa-copy"></i>
+        {{localize "DDBLI.CopyScript"}}
+      </button>
+    </div>
+
+    <div class="form-group ddbli-results">
+      <label>{{localize "DDBLI.ResultsBoxLabel"}}</label>
+      <textarea name="resultsJson" rows="3" placeholder="{{localize 'DDBLI.ResultsBoxPlaceholder'}}"></textarea>
+    </div>
+
+    <button type="button" class="ddbli-import-btn" data-action="process-results">
+      <i class="fa-solid fa-dice-d20"></i>
+      {{localize "DDBLI.ProcessResults"}}
+    </button>
+
+    {{#if resultLine}}
+    <p class="ddbli-result-line">{{resultLine}}</p>
+    {{/if}}
+  </section>
+</form>

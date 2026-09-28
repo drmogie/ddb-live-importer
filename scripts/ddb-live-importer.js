@@ -69,28 +69,54 @@ const SYNC_CATEGORY_SETTING_KEYS = {
 };
 
 /**
- * Individual field-level toggles nested under the "Basics" category --
- * each only matters when "syncBasics" above is also on (see
- * DEFAULT_SYNC_OPTIONS's comment in ddb-mapper.js). Added 2026-09-27 per
- * user request to split Basics into individually toggleable fields
- * instead of one all-or-nothing switch.
+ * Individual field-level toggles nested under each of the 5 sync
+ * categories -- each only matters when that category's own master toggle
+ * (SYNC_CATEGORY_SETTING_KEYS) is also on (see DEFAULT_SYNC_OPTIONS's
+ * comment in ddb-mapper.js). Shown as a tabbed list in the "Sync
+ * Settings" window, one tab per category. Added 2026-09-27 per user
+ * request so a GM can sync one part of a category without the rest (e.g.
+ * Gear items without touching currency).
  */
-const BASICS_FIELD_SETTING_KEYS = {
-  basicsName: "syncBasicsFieldName",
-  basicsRace: "syncBasicsFieldRace",
-  basicsBackground: "syncBasicsFieldBackground",
-  basicsGender: "syncBasicsFieldGender",
-  basicsAge: "syncBasicsFieldAge",
-  basicsBiography: "syncBasicsFieldBiography"
+const CATEGORY_FIELD_SETTING_KEYS = {
+  basics: {
+    basicsName: "syncBasicsFieldName",
+    basicsRace: "syncBasicsFieldRace",
+    basicsBackground: "syncBasicsFieldBackground",
+    basicsGender: "syncBasicsFieldGender",
+    basicsAge: "syncBasicsFieldAge",
+    basicsBiography: "syncBasicsFieldBiography"
+  },
+  gameDetails: {
+    detailsClass: "syncDetailsFieldClass",
+    detailsLevel: "syncDetailsFieldLevel",
+    detailsXp: "syncDetailsFieldXp",
+    detailsSize: "syncDetailsFieldSize",
+    detailsSpeed: "syncDetailsFieldSpeed"
+  },
+  abilities: {
+    abilitiesScores: "syncAbilitiesFieldScores",
+    abilitiesHp: "syncAbilitiesFieldHp",
+    abilitiesSkills: "syncAbilitiesFieldSkills",
+    abilitiesSaves: "syncAbilitiesFieldSaves"
+  },
+  gear: {
+    gearItems: "syncGearFieldItems",
+    gearCurrency: "syncGearFieldCurrency"
+  },
+  extras: {
+    extrasSpells: "syncExtrasFieldSpells",
+    extrasFeatures: "syncExtrasFieldFeatures"
+  }
 };
 
-/** Reads the GM's sync toggles (5 categories + the Basics sub-fields) from world settings. Falls back to "everything on" if a setting isn't registered yet (shouldn't happen once init has run, but keeps this safe to call early/in tests). */
+/** Reads every sync toggle (5 category masters + every field nested under them) from world settings. Falls back to "everything on" if a setting isn't registered yet (shouldn't happen once init has run, but keeps this safe to call early/in tests). */
 function getSyncOptions() {
   const opts = {};
-  for (const [key, settingKey] of [
+  const allEntries = [
     ...Object.entries(SYNC_CATEGORY_SETTING_KEYS),
-    ...Object.entries(BASICS_FIELD_SETTING_KEYS)
-  ]) {
+    ...Object.values(CATEGORY_FIELD_SETTING_KEYS).flatMap(fields => Object.entries(fields))
+  ];
+  for (const [key, settingKey] of allEntries) {
     try {
       opts[key] = game.settings.get(MODULE_ID, settingKey);
     } catch {
@@ -598,56 +624,82 @@ async function syncOneFromFetchResult(entry, linkedActors, options) {
   return actor.name;
 }
 
-class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
+/**
+ * "Sync Settings" -- the GM-only advanced window holding everything this
+ * module needs configured EXCEPT the Proxy URL (which stays on Foundry's
+ * own Configure Settings screen, at the top, per Mogie): one tab per sync
+ * category (Basics/Details/Abilities/Gear/Extras), each with its own
+ * "Sync All (This Category)" master plus every individual field under
+ * it, and the manual (console-paste) "Sync All" flow for characters the
+ * DDB Scraper Proxy can't reach. The everyday "Sync Panel" window (below)
+ * is kept deliberately minimal -- just portraits and a result line -- for
+ * quick day-to-day syncing.
+ */
+class DDBSettingsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
-    id: "ddb-live-importer-sync-panel",
-    classes: ["ddb-live-importer"],
+    id: "ddb-live-importer-settings-panel",
+    classes: ["ddb-live-importer", "ddbli-sync-panel"],
     window: {
-      title: "DDBLI.SyncPanelTitle",
-      icon: "fa-solid fa-dice-d20",
+      title: "DDBLI.SyncSettingsTitle",
+      icon: "fa-solid fa-gear",
       resizable: true
     },
     position: { width: 520, height: "auto" },
     actions: {
-      "open-ddb": DDBSyncPanel.#onOpenDDB,
-      "copy-script": DDBSyncPanel.#onCopyScript,
-      "auto-fetch-proxy": DDBSyncPanel.#onAutoFetchProxy,
-      "process-results": DDBSyncPanel.#onProcessResults,
-      "toggle-select": DDBSyncPanel.#onToggleSelect,
-      "sync-selected": DDBSyncPanel.#onSyncSelected
+      "switch-tab": DDBSettingsPanel.#onSwitchTab,
+      "open-ddb": DDBSettingsPanel.#onOpenDDB,
+      "copy-script": DDBSettingsPanel.#onCopyScript,
+      "auto-fetch-proxy": DDBSettingsPanel.#onAutoFetchProxy,
+      "process-results": DDBSettingsPanel.#onProcessResults
     }
   };
 
   static PARTS = {
-    body: { template: `modules/${MODULE_ID}/templates/sync-panel.html` }
+    body: { template: `modules/${MODULE_ID}/templates/settings-panel.html` }
   };
 
-  /** D&D Beyond-linked actor ids the GM has clicked on in the portrait grid. Kept selected across re-renders while this panel instance stays open. */
-  selectedIds = new Set();
+  /** Which category tab is showing. Kept across re-renders while this panel instance stays open. */
+  activeTab = "basics";
 
-  /** Every actor this module has already linked to a D&D Beyond character id. */
+  /** Every actor this module has already linked to a D&D Beyond character id -- same lookup DDBSyncPanel uses below, duplicated here since the bulk Sync All/Auto-Fetch actions live in this separate Application instance now. */
   #linkedActors() {
     return game.actors.filter(a => a.type === "character" && a.getFlag(MODULE_ID, "ddbCharacterId"));
   }
 
   async _prepareContext(_options) {
-    const linked = this.#linkedActors();
+    const settingKeys = [
+      ...Object.values(SYNC_CATEGORY_SETTING_KEYS),
+      ...Object.values(CATEGORY_FIELD_SETTING_KEYS).flatMap(fields => Object.values(fields))
+    ];
+    const values = {};
+    for (const key of settingKeys) values[key] = game.settings.get(MODULE_ID, key);
+
     return {
-      characterCount: linked.length,
+      ...values,
+      isBasicsTab: this.activeTab === "basics",
+      isDetailsTab: this.activeTab === "gameDetails",
+      isAbilitiesTab: this.activeTab === "abilities",
+      isGearTab: this.activeTab === "gear",
+      isExtrasTab: this.activeTab === "extras",
+      characterCount: this.#linkedActors().length,
       proxyConfigured: !!proxyBaseUrl(),
-      selectedCount: this.selectedIds.size,
-      characters: linked.map(a => {
-        const lastImported = a.getFlag(MODULE_ID, "lastImported");
-        return {
-          id: a.id,
-          name: a.name,
-          img: a.img,
-          selected: this.selectedIds.has(a.id),
-          lastSyncedLabel: lastImported ? new Date(lastImported).toLocaleString() : game.i18n.localize("DDBLI.NeverSynced")
-        };
-      }),
       resultLine: this._resultLine ?? ""
     };
+  }
+
+  /** Every checkbox here saves the instant it's clicked -- no separate Save button, matching how every other toggle in this module already behaves. */
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    for (const input of this.element.querySelectorAll("input[data-setting]")) {
+      input.addEventListener("change", () => {
+        game.settings.set(MODULE_ID, input.dataset.setting, input.checked);
+      });
+    }
+  }
+
+  static #onSwitchTab(_event, target) {
+    this.activeTab = target.dataset.tab;
+    this.render();
   }
 
   static #onOpenDDB() {
@@ -700,9 +752,10 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       }
 
+      const total = linkedActors.length;
       this._resultLine = remainingNames.length
-        ? `${game.i18n.format("DDBLI.ProxyAutoFetchResult", { done, remaining: remainingNames.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: remainingNames.join(", ") })}`
-        : game.i18n.format("DDBLI.ProxyAutoFetchResult", { done, remaining: 0 });
+        ? `${game.i18n.format("DDBLI.ProxyAutoFetchResult", { done, total, remaining: remainingNames.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: remainingNames.join(", ") })}`
+        : game.i18n.format("DDBLI.ProxyAutoFetchResult", { done, total, remaining: 0 });
       this.render();
     } finally {
       target.disabled = false;
@@ -737,9 +790,10 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       }
 
+      const total = entries.length;
       this._resultLine = failedNames.length
-        ? `${game.i18n.format("DDBLI.SyncAllResult", { done, failed: failedNames.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: failedNames.join(", ") })}`
-        : game.i18n.format("DDBLI.SyncAllResult", { done, failed: 0 });
+        ? `${game.i18n.format("DDBLI.SyncAllResult", { done, total, failed: failedNames.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: failedNames.join(", ") })}`
+        : game.i18n.format("DDBLI.SyncAllResult", { done, total, failed: 0 });
       textarea.value = "";
       this.render();
     } catch (err) {
@@ -748,6 +802,62 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     } finally {
       target.disabled = false;
     }
+  }
+}
+
+/**
+ * "Sync Panel" -- the everyday, GM-only main window: every D&D
+ * Beyond-linked character shown as a clickable portrait, multi-select,
+ * one "Sync Selected" button, one result line. Everything else (the
+ * category tabs and the manual console-paste flow) lives in the separate
+ * "Sync Settings" window above instead, kept out of this one on purpose
+ * so this stays the fast, everyday tool.
+ */
+class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "ddb-live-importer-sync-panel",
+    classes: ["ddb-live-importer", "ddbli-sync-panel"],
+    window: {
+      title: "DDBLI.SyncPanelTitle",
+      icon: "fa-solid fa-dice-d20",
+      resizable: true
+    },
+    position: { width: 420, height: "auto" },
+    actions: {
+      "toggle-select": DDBSyncPanel.#onToggleSelect,
+      "sync-selected": DDBSyncPanel.#onSyncSelected,
+      "open-settings": DDBSyncPanel.#onOpenSettings
+    }
+  };
+
+  static PARTS = {
+    body: { template: `modules/${MODULE_ID}/templates/sync-panel.html` }
+  };
+
+  /** D&D Beyond-linked actor ids the GM has clicked on in the portrait grid. Kept selected across re-renders while this panel instance stays open. */
+  selectedIds = new Set();
+
+  /** Every actor this module has already linked to a D&D Beyond character id. */
+  #linkedActors() {
+    return game.actors.filter(a => a.type === "character" && a.getFlag(MODULE_ID, "ddbCharacterId"));
+  }
+
+  async _prepareContext(_options) {
+    const linked = this.#linkedActors();
+    return {
+      selectedCount: this.selectedIds.size,
+      characters: linked.map(a => {
+        const lastImported = a.getFlag(MODULE_ID, "lastImported");
+        return {
+          id: a.id,
+          name: a.name,
+          img: a.img,
+          selected: this.selectedIds.has(a.id),
+          lastSyncedLabel: lastImported ? new Date(lastImported).toLocaleString() : game.i18n.localize("DDBLI.NeverSynced")
+        };
+      }),
+      resultLine: this._resultLine ?? ""
+    };
   }
 
   /** Clicking a portrait toggles it in/out of the selection (amber aura is purely CSS off the .ddbli-selected class this adds/removes via re-render). */
@@ -761,14 +871,13 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * Syncs exactly the characters selected in the portrait grid -- one or
-   * several. Tries the proxy first for each (same as Auto-Fetch), so any
-   * selected public character syncs immediately with no manual step. If
-   * exactly one character was selected and the proxy couldn't get it
-   * (private, or no proxy configured), opens that character's normal
-   * Import/Update dialog instead -- same as the old per-row Sync button
-   * did. With several selected and some still needing the manual step,
-   * those are named in the result line -- the console-paste Sync All
-   * section above still covers them.
+   * several. Tries the proxy first for each, so any selected public
+   * character syncs immediately with no manual step. If exactly one
+   * character was selected and the proxy couldn't get it (private, or no
+   * proxy configured), opens that character's normal Import/Update
+   * dialog instead. With several selected and some still needing the
+   * manual step, those are named in the result line -- open Sync
+   * Settings for the manual console-paste flow that covers them.
    */
   static async #onSyncSelected(_event, target) {
     if (this.selectedIds.size === 0) return;
@@ -805,13 +914,19 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
 
+      const total = selected.length;
       this._resultLine = remainingActors.length
-        ? `${game.i18n.format("DDBLI.SyncSelectedResult", { done, remaining: remainingActors.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: remainingActors.map(a => a.name).join(", ") })}`
-        : game.i18n.format("DDBLI.SyncSelectedResult", { done, remaining: 0 });
+        ? `${game.i18n.format("DDBLI.SyncSelectedResult", { done, total, remaining: remainingActors.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: remainingActors.map(a => a.name).join(", ") })}`
+        : game.i18n.format("DDBLI.SyncSelectedResult", { done, total, remaining: 0 });
       this.render();
     } finally {
       target.disabled = false;
     }
+  }
+
+  /** Small link to the separate Sync Settings window, so it's reachable from here without hunting through Foundry's Configure Settings screen. */
+  static #onOpenSettings() {
+    new DDBSettingsPanel().render(true);
   }
 }
 
@@ -863,7 +978,7 @@ function registerBooleanSetting(settingKey, defaultValue) {
     name: `DDBLI.Setting${cap}Name`,
     hint: `DDBLI.Setting${cap}Hint`,
     scope: "world",
-    config: true,
+    config: false,
     type: Boolean,
     default: defaultValue
   });
@@ -885,24 +1000,36 @@ Hooks.once("init", () => {
     default: ""
   });
 
-  // Sync: Basics -- the master toggle, then its individual fields
-  // registered right after it so they're grouped together on the
-  // Configure Settings screen. World-scope so every user (in practice,
-  // only the GM can ever trigger a sync) follows the same toggles.
-  registerBooleanSetting(SYNC_CATEGORY_SETTING_KEYS.basics, DEFAULT_SYNC_OPTIONS.basics);
-  for (const [optKey, settingKey] of Object.entries(BASICS_FIELD_SETTING_KEYS)) {
-    registerBooleanSetting(settingKey, DEFAULT_SYNC_OPTIONS[optKey]);
-  }
-
-  // The remaining 4 sync-category toggles.
+  // Every sync category's master toggle, then its individual fields
+  // registered right after it -- world-scope so every user (in practice,
+  // only the GM can ever trigger a sync) follows the same toggles. All of
+  // these are config:false (see registerBooleanSetting) since they're now
+  // edited through the tabbed "Sync Settings" window instead of Foundry's
+  // flat Configure Settings list -- still fully game.settings.get/set-able
+  // exactly as before, just not auto-rendered there.
   for (const [category, settingKey] of Object.entries(SYNC_CATEGORY_SETTING_KEYS)) {
-    if (category === "basics") continue;
     registerBooleanSetting(settingKey, DEFAULT_SYNC_OPTIONS[category]);
+    for (const [optKey, fieldSettingKey] of Object.entries(CATEGORY_FIELD_SETTING_KEYS[category] ?? {})) {
+      registerBooleanSetting(fieldSettingKey, DEFAULT_SYNC_OPTIONS[optKey]);
+    }
   }
 
-  // Sync Panel: a button in this module's row on the Configure Settings
-  // screen, opening the GM panel that lists every linked character and
-  // drives "sync one"/"sync all" (see DDBSyncPanel above).
+  // Sync Settings: a button opening the advanced window that holds
+  // everything except the Proxy URL above -- the tabbed category/field
+  // toggles just registered, plus the manual console-paste "Sync All"
+  // flow (see DDBSettingsPanel above).
+  game.settings.registerMenu(MODULE_ID, "syncSettingsMenu", {
+    name: "DDBLI.SyncSettingsMenuName",
+    label: "DDBLI.SyncSettingsMenuLabel",
+    hint: "DDBLI.SyncSettingsMenuHint",
+    icon: "fa-solid fa-gear",
+    type: DDBSettingsPanel,
+    restricted: true
+  });
+
+  // Sync Panel: a button opening the everyday GM window -- every linked
+  // character as a clickable portrait, multi-select, one Sync Selected
+  // button, one result line (see DDBSyncPanel above).
   game.settings.registerMenu(MODULE_ID, "syncPanelMenu", {
     name: "DDBLI.SyncPanelMenuName",
     label: "DDBLI.SyncPanelMenuLabel",

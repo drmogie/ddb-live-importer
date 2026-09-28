@@ -1,49 +1,5 @@
 <form class="ddbli-sync-panel">
   <section class="ddbli-panel-section">
-    <h3>{{localize "DDBLI.SyncAllHeading"}}</h3>
-
-    {{#if proxyConfigured}}
-    <button type="button" class="ddbli-proxy-btn" data-action="auto-fetch-proxy">
-      <i class="fa-solid fa-bolt"></i>
-      {{localize "DDBLI.ProxyAutoFetch"}}
-    </button>
-    <p class="ddbli-proxy-hint">{{localize "DDBLI.ProxyAutoFetchHint"}}</p>
-    {{/if}}
-
-    <ol class="ddbli-steps">
-      <li>{{localize "DDBLI.SyncAllStep1"}}</li>
-      <li>{{localize "DDBLI.SyncAllStep2"}}</li>
-      <li>{{localize "DDBLI.SyncAllStep3"}}</li>
-      <li>{{localize "DDBLI.SyncAllStep4"}}</li>
-    </ol>
-
-    <div class="ddbli-panel-actions">
-      <button type="button" data-action="open-ddb">
-        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-        {{localize "DDBLI.OpenDDB"}}
-      </button>
-      <button type="button" data-action="copy-script" {{#unless characterCount}}disabled{{/unless}}>
-        <i class="fa-solid fa-copy"></i>
-        {{localize "DDBLI.CopyScript"}}
-      </button>
-    </div>
-
-    <div class="form-group ddbli-results">
-      <label>{{localize "DDBLI.ResultsBoxLabel"}}</label>
-      <textarea name="resultsJson" rows="3" placeholder="{{localize 'DDBLI.ResultsBoxPlaceholder'}}"></textarea>
-    </div>
-
-    <button type="button" class="ddbli-import-btn" data-action="process-results">
-      <i class="fa-solid fa-dice-d20"></i>
-      {{localize "DDBLI.ProcessResults"}}
-    </button>
-
-    {{#if resultLine}}
-    <p class="ddbli-result-line">{{resultLine}}</p>
-    {{/if}}
-  </section>
-
-  <section class="ddbli-panel-section">
     <h3>{{localize "DDBLI.LinkedCharacters"}}</h3>
     {{#if characters.length}}
     <p class="ddbli-portrait-hint">{{localize "DDBLI.PortraitHint"}}</p>
@@ -59,8 +15,16 @@
       <i class="fa-solid fa-arrows-rotate"></i>
       {{localize "DDBLI.SyncSelected"}}{{#if selectedCount}} ({{selectedCount}}){{/if}}
     </button>
+    {{#if resultLine}}
+    <p class="ddbli-result-line">{{resultLine}}</p>
+    {{/if}}
     {{else}}
     <p>{{localize "DDBLI.NoLinkedCharacters"}}</p>
     {{/if}}
   </section>
+
+  <button type="button" class="ddbli-open-settings-btn" data-action="open-settings">
+    <i class="fa-solid fa-gear"></i>
+    {{localize "DDBLI.OpenSyncSettings"}}
+  </button>
 </form>

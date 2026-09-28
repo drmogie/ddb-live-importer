@@ -172,6 +172,62 @@
   cursor: not-allowed;
 }
 
+.ddbli-sync-panel .ddbli-open-settings-btn {
+  width: 100%;
+  margin-top: 4px;
+  opacity: 0.8;
+}
+
+.ddbli-sync-panel .ddbli-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #999);
+}
+
+.ddbli-sync-panel .ddbli-tab-btn {
+  flex: 1;
+  padding: 4px 2px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.ddbli-sync-panel .ddbli-tab-btn.active {
+  border-bottom-color: #ffb020;
+}
+
+.ddbli-sync-panel .ddbli-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.ddbli-sync-panel .ddbli-toggle-row input {
+  margin: 0;
+}
+
+.ddbli-sync-panel .ddbli-toggle-master {
+  font-size: 1.05em;
+}
+
+.ddbli-sync-panel .ddbli-toggle-hint {
+  margin: 0 0 8px 22px;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--color-text-dark-secondary, #777);
+}
+
+.ddbli-sync-panel .ddbli-toggle-subgroup {
+  margin: 0 0 8px 22px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--color-border-light-tertiary, #999);
+}
+
 .ddb-live-importer .ddbli-proxy-status {
   margin: -6px 0 10px 0;
   font-size: 0.85em;
