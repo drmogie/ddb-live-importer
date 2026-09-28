@@ -68,10 +68,29 @@ const SYNC_CATEGORY_SETTING_KEYS = {
   extras: "syncExtras"
 };
 
-/** Reads the GM's 5 toggles from world settings. Falls back to "everything on" if settings aren't registered yet (shouldn't happen once init has run, but keeps this safe to call early/in tests). */
+/**
+ * Individual field-level toggles nested under the "Basics" category --
+ * each only matters when "syncBasics" above is also on (see
+ * DEFAULT_SYNC_OPTIONS's comment in ddb-mapper.js). Added 2026-09-27 per
+ * user request to split Basics into individually toggleable fields
+ * instead of one all-or-nothing switch.
+ */
+const BASICS_FIELD_SETTING_KEYS = {
+  basicsName: "syncBasicsFieldName",
+  basicsRace: "syncBasicsFieldRace",
+  basicsBackground: "syncBasicsFieldBackground",
+  basicsGender: "syncBasicsFieldGender",
+  basicsAge: "syncBasicsFieldAge",
+  basicsBiography: "syncBasicsFieldBiography"
+};
+
+/** Reads the GM's sync toggles (5 categories + the Basics sub-fields) from world settings. Falls back to "everything on" if a setting isn't registered yet (shouldn't happen once init has run, but keeps this safe to call early/in tests). */
 function getSyncOptions() {
   const opts = {};
-  for (const [key, settingKey] of Object.entries(SYNC_CATEGORY_SETTING_KEYS)) {
+  for (const [key, settingKey] of [
+    ...Object.entries(SYNC_CATEGORY_SETTING_KEYS),
+    ...Object.entries(BASICS_FIELD_SETTING_KEYS)
+  ]) {
     try {
       opts[key] = game.settings.get(MODULE_ID, settingKey);
     } catch {
@@ -79,6 +98,27 @@ function getSyncOptions() {
     }
   }
   return opts;
+}
+
+/** Foundry's own default token image -- an actor that's never had a custom token set still has this. */
+const DEFAULT_TOKEN_IMG = "icons/svg/mystery-man.svg";
+
+/**
+ * D&D Beyond gives every character a portrait, and this module already
+ * uses it for the actor's own `img`. Foundry does NOT also default the
+ * token to that same image -- a freshly created actor keeps the generic
+ * "mystery man" token until someone sets one by hand. This fills the
+ * token in with that same portrait too, but ONLY when no one has set a
+ * real token yet (a brand-new actor has none; an existing one is only
+ * touched here if its token is still the untouched Foundry default), so a
+ * token the GM picked on purpose is never overwritten by a resync.
+ */
+function applyDefaultTokenImage(actorData, existingTokenSrc) {
+  const avatarUrl = actorData.img;
+  if (!avatarUrl) return;
+  const hasCustomToken = existingTokenSrc && existingTokenSrc !== DEFAULT_TOKEN_IMG;
+  if (hasCustomToken) return;
+  actorData.prototypeToken = { texture: { src: avatarUrl } };
 }
 
 /**
@@ -102,7 +142,7 @@ function lockedOwnership(existingOwnership = {}) {
 
 /**
  * Reads the optional DDB Scraper Proxy base URL from settings (e.g.
- * "https://ddb-proxy.mogie.io") -- see the "ddb-scraper-proxy" Home
+ * "https://ddb-proxy.example.com") -- see the "ddb-scraper-proxy" Home
  * Assistant add-on. Empty string (default) means "not configured", and
  * every caller below treats that the same as "the proxy isn't reachable" --
  * falls back to the manual console-paste flow, no error shown.
@@ -355,12 +395,21 @@ async function syncActorFromDdbData(actor, raw, options = getSyncOptions()) {
   const items = await resolveItemsAgainstCompendiums(basicItems);
   actorData.ownership = lockedOwnership(actor.ownership);
 
+  // Name is the one field the mapper always fills in unconditionally (a
+  // brand-new actor needs a name to even be created), but on a *resync* of
+  // an existing actor it now respects its own toggle -- handled here
+  // rather than in the mapper, since the mapper has no way to tell a fresh
+  // create from a resync.
+  if (!(options.basics && options.basicsName)) delete actorData.name;
+
+  applyDefaultTokenImage(actorData, actor.prototypeToken?.texture?.src);
+
   console.log(`${MODULE_ID} | raw D&D Beyond character data`, ddbData);
   console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
 
   await actor.update(actorData);
   await replaceItems(actor, items, syncedCategories);
-  return actorData.name;
+  return actor.name;
 }
 
 /** Create a new actor, or update one matched by name, from pasted JSON text. */
@@ -377,6 +426,7 @@ async function importFromJson(rawText) {
     const { actorData, items: basicItems, syncedCategories } = mapDdbCharacterToActor(raw, options);
     const items = await resolveItemsAgainstCompendiums(basicItems);
     actorData.ownership = lockedOwnership();
+    applyDefaultTokenImage(actorData, null);
     console.log(`${MODULE_ID} | mapped actor data`, actorData, items);
     const actor = await Actor.create(actorData);
     await actor.createEmbeddedDocuments("Item", items);
@@ -563,13 +613,17 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       "copy-script": DDBSyncPanel.#onCopyScript,
       "auto-fetch-proxy": DDBSyncPanel.#onAutoFetchProxy,
       "process-results": DDBSyncPanel.#onProcessResults,
-      "sync-one": DDBSyncPanel.#onSyncOne
+      "toggle-select": DDBSyncPanel.#onToggleSelect,
+      "sync-selected": DDBSyncPanel.#onSyncSelected
     }
   };
 
   static PARTS = {
     body: { template: `modules/${MODULE_ID}/templates/sync-panel.html` }
   };
+
+  /** D&D Beyond-linked actor ids the GM has clicked on in the portrait grid. Kept selected across re-renders while this panel instance stays open. */
+  selectedIds = new Set();
 
   /** Every actor this module has already linked to a D&D Beyond character id. */
   #linkedActors() {
@@ -581,11 +635,14 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     return {
       characterCount: linked.length,
       proxyConfigured: !!proxyBaseUrl(),
+      selectedCount: this.selectedIds.size,
       characters: linked.map(a => {
         const lastImported = a.getFlag(MODULE_ID, "lastImported");
         return {
           id: a.id,
           name: a.name,
+          img: a.img,
+          selected: this.selectedIds.has(a.id),
           lastSyncedLabel: lastImported ? new Date(lastImported).toLocaleString() : game.i18n.localize("DDBLI.NeverSynced")
         };
       }),
@@ -693,9 +750,68 @@ class DDBSyncPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  static #onSyncOne(_event, target) {
-    const actor = game.actors.get(target.dataset.actorId);
-    if (actor) new DDBImportDialog(actor).render(true);
+  /** Clicking a portrait toggles it in/out of the selection (amber aura is purely CSS off the .ddbli-selected class this adds/removes via re-render). */
+  static #onToggleSelect(_event, target) {
+    const id = target.dataset.actorId;
+    if (!id) return;
+    if (this.selectedIds.has(id)) this.selectedIds.delete(id);
+    else this.selectedIds.add(id);
+    this.render();
+  }
+
+  /**
+   * Syncs exactly the characters selected in the portrait grid -- one or
+   * several. Tries the proxy first for each (same as Auto-Fetch), so any
+   * selected public character syncs immediately with no manual step. If
+   * exactly one character was selected and the proxy couldn't get it
+   * (private, or no proxy configured), opens that character's normal
+   * Import/Update dialog instead -- same as the old per-row Sync button
+   * did. With several selected and some still needing the manual step,
+   * those are named in the result line -- the console-paste Sync All
+   * section above still covers them.
+   */
+  static async #onSyncSelected(_event, target) {
+    if (this.selectedIds.size === 0) return;
+    target.disabled = true;
+    try {
+      const linkedActors = this.#linkedActors();
+      const selected = linkedActors.filter(a => this.selectedIds.has(a.id));
+      const options = getSyncOptions();
+      let done = 0;
+      const remainingActors = [];
+
+      for (const actor of selected) {
+        const characterId = actor.getFlag(MODULE_ID, "ddbCharacterId");
+        const data = await fetchCharacterViaProxy(characterId);
+        if (!data) {
+          remainingActors.push(actor);
+          continue;
+        }
+        try {
+          await syncActorFromDdbData(actor, data, options);
+          done++;
+        } catch (err) {
+          remainingActors.push(actor);
+          console.error(`${MODULE_ID} |`, err);
+        }
+      }
+
+      this.selectedIds.clear();
+
+      if (remainingActors.length === 1 && selected.length === 1) {
+        this._resultLine = "";
+        this.render();
+        new DDBImportDialog(remainingActors[0]).render(true);
+        return;
+      }
+
+      this._resultLine = remainingActors.length
+        ? `${game.i18n.format("DDBLI.SyncSelectedResult", { done, remaining: remainingActors.length })} ${game.i18n.format("DDBLI.SyncAllFailedNames", { names: remainingActors.map(a => a.name).join(", ") })}`
+        : game.i18n.format("DDBLI.SyncSelectedResult", { done, remaining: 0 });
+      this.render();
+    } finally {
+      target.disabled = false;
+    }
   }
 }
 
@@ -740,25 +856,26 @@ Hooks.on("renderActorDirectory", (app, html) => {
 // what actually works, and the entry shape itself changed too: "condition"
 // is now "visible" and "callback" is now "onClick" (confirmed by reading
 // a real core menu entry's own keys live).
-Hooks.once("init", () => {
-  // The 5 sync-category toggles -- one shared setting used by every
-  // import/update, single or bulk. World-scope so every user (in practice,
-  // only the GM can ever trigger a sync) follows the same toggles.
-  for (const [category, settingKey] of Object.entries(SYNC_CATEGORY_SETTING_KEYS)) {
-    game.settings.register(MODULE_ID, settingKey, {
-      name: `DDBLI.SettingSync${category[0].toUpperCase()}${category.slice(1)}Name`,
-      hint: `DDBLI.SettingSync${category[0].toUpperCase()}${category.slice(1)}Hint`,
-      scope: "world",
-      config: true,
-      type: Boolean,
-      default: DEFAULT_SYNC_OPTIONS[category]
-    });
-  }
+/** Registers one of this module's boolean sync toggles, deriving its name/hint localization keys from the setting key itself (e.g. "syncBasics" -> DDBLI.SettingSyncBasicsName/Hint) -- same convention every one of these settings already followed, just no longer copy-pasted per call site now that there are 10 of these instead of 5. */
+function registerBooleanSetting(settingKey, defaultValue) {
+  const cap = settingKey[0].toUpperCase() + settingKey.slice(1);
+  game.settings.register(MODULE_ID, settingKey, {
+    name: `DDBLI.Setting${cap}Name`,
+    hint: `DDBLI.Setting${cap}Hint`,
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: defaultValue
+  });
+}
 
+Hooks.once("init", () => {
   // Optional DDB Scraper Proxy base URL (see the companion Home Assistant
-  // add-on). Blank by default -- every caller treats blank the same as
-  // "not reachable" and falls back to the manual console-paste flow, so
-  // leaving this empty is a fully supported, unchanged experience.
+  // add-on). Registered first so it's the top setting in this module's
+  // row on the Configure Settings screen (per Mogie). Blank by default --
+  // every caller treats blank the same as "not reachable" and falls back
+  // to the manual console-paste flow, so leaving this empty is a fully
+  // supported, unchanged experience.
   game.settings.register(MODULE_ID, "ddbProxyUrl", {
     name: "DDBLI.SettingProxyUrlName",
     hint: "DDBLI.SettingProxyUrlHint",
@@ -767,6 +884,21 @@ Hooks.once("init", () => {
     type: String,
     default: ""
   });
+
+  // Sync: Basics -- the master toggle, then its individual fields
+  // registered right after it so they're grouped together on the
+  // Configure Settings screen. World-scope so every user (in practice,
+  // only the GM can ever trigger a sync) follows the same toggles.
+  registerBooleanSetting(SYNC_CATEGORY_SETTING_KEYS.basics, DEFAULT_SYNC_OPTIONS.basics);
+  for (const [optKey, settingKey] of Object.entries(BASICS_FIELD_SETTING_KEYS)) {
+    registerBooleanSetting(settingKey, DEFAULT_SYNC_OPTIONS[optKey]);
+  }
+
+  // The remaining 4 sync-category toggles.
+  for (const [category, settingKey] of Object.entries(SYNC_CATEGORY_SETTING_KEYS)) {
+    if (category === "basics") continue;
+    registerBooleanSetting(settingKey, DEFAULT_SYNC_OPTIONS[category]);
+  }
 
   // Sync Panel: a button in this module's row on the Configure Settings
   // screen, opening the GM panel that lists every linked character and

@@ -109,16 +109,67 @@
   font-weight: bold;
 }
 
-.ddbli-sync-panel .ddbli-char-table {
+.ddbli-sync-panel .ddbli-portrait-hint {
+  margin: 0 0 8px 0;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--color-text-dark-secondary, #777);
+}
+
+.ddbli-sync-panel .ddbli-portrait-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ddbli-sync-panel .ddbli-portrait {
+  width: 72px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ddbli-sync-panel .ddbli-portrait img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.ddbli-sync-panel .ddbli-portrait:hover img {
+  border-color: #ffb020;
+}
+
+.ddbli-sync-panel .ddbli-portrait.ddbli-selected img {
+  border-color: #ffb020;
+  transform: scale(1.03);
+  /* Amber aura around the selected portrait. */
+  box-shadow:
+    0 0 8px 2px rgba(255, 176, 32, 0.9),
+    0 0 18px 6px rgba(255, 176, 32, 0.55);
+}
+
+.ddbli-sync-panel .ddbli-portrait-name {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ddbli-sync-panel .ddbli-sync-selected-btn {
   width: 100%;
+  margin-bottom: 4px;
+  font-weight: bold;
 }
 
-.ddbli-sync-panel .ddbli-char-table th {
-  text-align: left;
-}
-
-.ddbli-sync-panel .ddbli-char-table td {
-  padding: 3px 4px;
+.ddbli-sync-panel .ddbli-sync-selected-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ddb-live-importer .ddbli-proxy-status {

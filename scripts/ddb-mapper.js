@@ -475,20 +475,39 @@ function buildBiography(data) {
  * and this module's older by-name matching depends on the name being kept
  * current, so those two always sync regardless of the toggles below.
  *
- * - basics: race/background NAME text, gender, age, biography
+ * - basics: race/background NAME text, gender, age, biography (master
+ *   toggle -- see basicsName/basicsRace/basicsBackground/basicsGender/
+ *   basicsAge/basicsBiography below for individual field control, ANDed
+ *   with this one; added 2026-09-27 per user request)
  * - gameDetails: class/subclass Items, character level, XP, size, speed
  * - abilities: ability scores, HP, skill and save proficiencies (AC is
  *   always left for dnd5e to compute once a real armor item is equipped,
  *   independent of this toggle)
  * - gear: inventory Items (weapons/equipment/consumables/etc.) + currency
  * - extras: spells, feats/class-features/the background feature, as Items
+ *
+ * basicsName/basicsRace/basicsBackground/basicsGender/basicsAge/
+ * basicsBiography: individual fields nested under "basics" above. Each
+ * only has an effect when "basics" itself is also true -- turning the
+ * Basics category off still turns everything below off, same as before
+ * this split existed; turning it on lets these fine-tune exactly which
+ * Basics fields actually sync. basicsName covers the actor's Name field
+ * specifically -- gated only on a RESYNC (see syncActorFromDdbData() in
+ * ddb-live-importer.js); a brand-new import always gets the D&D Beyond
+ * name once regardless, since a new actor needs one to be created at all.
  */
 export const DEFAULT_SYNC_OPTIONS = Object.freeze({
   basics: true,
   gameDetails: true,
   abilities: true,
   gear: true,
-  extras: true
+  extras: true,
+  basicsName: true,
+  basicsRace: true,
+  basicsBackground: true,
+  basicsGender: true,
+  basicsAge: true,
+  basicsBiography: true
 });
 
 /** Item types this module ever creates, grouped by which sync category owns them -- used by ddb-live-importer.js to only clear/replace the categories actually being synced this run, not everything. */
@@ -525,13 +544,11 @@ export function mapDdbCharacterToActor(ddbResponse, options = {}) {
   const system = { details: {}, attributes: {} };
 
   if (opts.basics) {
-    Object.assign(system.details, {
-      race: data.race?.fullName ?? "",
-      background: data.background?.definition?.name ?? "",
-      gender: data.gender ?? "",
-      age: data.age ? String(data.age) : "",
-      biography: { value: buildBiography(data) }
-    });
+    if (opts.basicsRace) system.details.race = data.race?.fullName ?? "";
+    if (opts.basicsBackground) system.details.background = data.background?.definition?.name ?? "";
+    if (opts.basicsGender) system.details.gender = data.gender ?? "";
+    if (opts.basicsAge) system.details.age = data.age ? String(data.age) : "";
+    if (opts.basicsBiography) system.details.biography = { value: buildBiography(data) };
   }
 
   if (opts.gameDetails) {

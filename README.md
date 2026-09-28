@@ -41,20 +41,32 @@ in place. Otherwise a new one is created.
 ## Settings & GM Sync Panel
 
 Every sync (single character or bulk) shares the same settings, found in
-Foundry's **Configure Settings** screen under this module's row:
+Foundry's **Configure Settings** screen under this module's row, top to
+bottom:
 
-- **5 category toggles** -- Basics, Game Details, Abilities, Gear, Extras.
+- **DDB Scraper Proxy URL** (optional) -- see the proxy section below.
+- **Sync: Basics** -- the master toggle for this category, immediately
+  followed by its own individual fields: **Name**, **Race**, **Background**,
+  **Gender**, **Age**, **Biography**. Turning Basics off still turns all six
+  off; turning it on lets you fine-tune exactly which of the six actually
+  sync (e.g. turn off just Name to freeze one you renamed by hand in
+  Foundry). A brand-new import always gets the D&D Beyond name once
+  regardless, since a new actor needs one to be created at all. Portrait
+  always syncs regardless of any of this.
+- **4 more category toggles** -- Game Details, Abilities, Gear, Extras.
   Turn any of these off and that category is left alone on future syncs
-  (nothing is deleted, it's just skipped). Name and portrait always sync
-  regardless of these toggles.
+  (nothing is deleted, it's just skipped).
 - **Sync Panel** button -- opens a GM-only panel listing every character
-  already linked to D&D Beyond, with:
-  - A **Sync** button per character (opens the same import dialog,
-    pre-filled with that character's ID).
+  already linked to D&D Beyond as a grid of clickable portraits, with:
+  - Click one or more portraits to select them (selected = amber glow),
+    then click **Sync Selected** to sync just that set -- tries the proxy
+    for each first, and if exactly one selected character still needs the
+    manual step, its Import/Update dialog opens automatically.
   - A **Sync All** section at the top for bulk-updating every linked
     character in one go (see below).
-  - Each character's last-synced time, and a result line ("3 done, 1
-    failed") after a Sync All run.
+  - Each character's last-synced time (shown when you hover a portrait),
+    and a result line ("3 done, 1 failed") after a Sync Selected or Sync
+    All run.
 
 **Sync All**, step by step: D&D Beyond blocks any other website (including
 your Foundry server) from fetching its data directly -- confirmed, this
@@ -76,6 +88,28 @@ from getting silently overwritten by the next sync. GMs are never affected
 by this -- Foundry always treats GM users as full owners of everything.
 
 ## Changelog
+
+- **2026.09.27.13** -- Sync Panel redesign, an individual-field split for
+  Basics, and a couple of import quality-of-life fixes.
+  - **Portrait picker**: the Sync Panel's character list is now a grid of
+    clickable portraits instead of a plain table. Click one or more to
+    select them (each gets an amber glow), then click **Sync Selected** --
+    tries the proxy for each selected character first (same as Auto-Fetch)
+    and syncs immediately on success; if exactly one selected character
+    still needs the manual step, its Import/Update dialog opens
+    automatically, same as the old per-row Sync button did.
+  - **Proxy URL moved to the top** of this module's settings row on the
+    Configure Settings screen.
+  - **Basics split into individual fields**: the "Sync: Basics" toggle is
+    still the master switch, but Name/Race/Background/Gender/Age/Biography
+    are now their own toggles nested right below it, so you can turn off
+    just one (e.g. freeze a name you changed by hand in Foundry) without
+    losing the rest. A brand-new import still always gets the D&D Beyond
+    name once, since a new actor needs one to be created at all.
+  - **Token image**: importing or syncing now also sets the actor's token
+    image to its D&D Beyond portrait, but only if no one has set a real
+    token yet (blank, or still Foundry's default "mystery man") -- a token
+    you picked by hand is never overwritten by a resync.
 
 - **2026.09.27.12** -- Added optional support for the companion **DDB
   Scraper Proxy** Home Assistant add-on. Set its URL in this module's

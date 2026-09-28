@@ -46,29 +46,19 @@
   <section class="ddbli-panel-section">
     <h3>{{localize "DDBLI.LinkedCharacters"}}</h3>
     {{#if characters.length}}
-    <table class="ddbli-char-table">
-      <thead>
-        <tr>
-          <th>{{localize "DDBLI.ColName"}}</th>
-          <th>{{localize "DDBLI.ColLastSynced"}}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each characters}}
-        <tr>
-          <td>{{this.name}}</td>
-          <td>{{this.lastSyncedLabel}}</td>
-          <td>
-            <button type="button" data-action="sync-one" data-actor-id="{{this.id}}">
-              <i class="fa-solid fa-arrows-rotate"></i>
-              {{localize "DDBLI.SyncOne"}}
-            </button>
-          </td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
+    <p class="ddbli-portrait-hint">{{localize "DDBLI.PortraitHint"}}</p>
+    <div class="ddbli-portrait-grid">
+      {{#each characters}}
+      <div class="ddbli-portrait{{#if this.selected}} ddbli-selected{{/if}}" data-action="toggle-select" data-actor-id="{{this.id}}" title="{{this.name}} - {{this.lastSyncedLabel}}">
+        <img src="{{this.img}}" alt="{{this.name}}">
+        <span class="ddbli-portrait-name">{{this.name}}</span>
+      </div>
+      {{/each}}
+    </div>
+    <button type="button" class="ddbli-sync-selected-btn" data-action="sync-selected" {{#unless selectedCount}}disabled{{/unless}}>
+      <i class="fa-solid fa-arrows-rotate"></i>
+      {{localize "DDBLI.SyncSelected"}}{{#if selectedCount}} ({{selectedCount}}){{/if}}
+    </button>
     {{else}}
     <p>{{localize "DDBLI.NoLinkedCharacters"}}</p>
     {{/if}}
