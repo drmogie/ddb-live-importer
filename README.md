@@ -329,3 +329,10 @@ scratch.
 
 `YYYY.MM.DD.#` -- bump the last number for same-day changes, otherwise bump
 the date.
+
+## Install from GitHub
+
+In Foundry, open Add-on Modules, then Install Module.
+Paste this Manifest URL and click Install:
+
+`https://github.com/drmogie/ddb-live-importer/releases/latest/download/module.json`
