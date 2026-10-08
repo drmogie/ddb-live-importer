@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026.10.07.1
+## 2026.10.07.01
 - New: Compendium Builder. Builds world compendiums from the D&D Beyond books you own.
 - One pack per book, per type: Monsters, Spells, Items, and Classes & Feats.
 - Reads your own logged-in D&D Beyond tab with a console script. No token is saved.
