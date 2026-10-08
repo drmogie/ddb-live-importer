@@ -37,6 +37,7 @@
  */
 
 import { mapDdbCharacterToActor, DEFAULT_SYNC_OPTIONS, ITEM_TYPES_BY_CATEGORY } from "./ddb-mapper.js";
+import { registerCompendiumBuilder } from "./ddb-compendium-builder.js";
 
 const MODULE_ID = "ddb-live-importer";
 const DDB_CAMPAIGNS_URL = "https://www.dndbeyond.com/my-campaigns";
@@ -1038,6 +1039,10 @@ Hooks.once("init", () => {
     type: DDBSyncPanel,
     restricted: true
   });
+
+  // Compendium Builder: one world compendium per owned book, per type
+  // (see ddb-compendium-builder.js).
+  registerCompendiumBuilder();
 
   const proto = foundry.applications.sidebar.tabs.ActorDirectory.prototype;
   const original = proto._getEntryContextOptions;

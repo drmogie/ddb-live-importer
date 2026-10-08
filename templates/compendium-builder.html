@@ -1,0 +1,46 @@
+<form class="ddbli-cb" onsubmit="return false">
+  <section class="ddbli-panel-section">
+    <h3>{{localize "DDBLI.CB.Step1Title"}}</h3>
+    <p>{{localize "DDBLI.CB.Step1Text"}}</p>
+    <div class="ddbli-cb-types">
+      {{#each types}}
+      <label><input type="checkbox" data-type-key="{{this.key}}" {{#if this.checked}}checked{{/if}}> {{this.label}}</label>
+      {{/each}}
+    </div>
+    <label class="ddbli-cb-titles">{{localize "DDBLI.CB.TitlesLabel"}}
+      <textarea name="titles" rows="3" placeholder="{{localize 'DDBLI.CB.TitlesHint'}}">{{titlesText}}</textarea>
+    </label>
+    <div class="ddbli-cb-buttons">
+      <button type="button" data-action="open-library"><i class="fa-solid fa-up-right-from-square"></i> {{localize "DDBLI.CB.OpenLibrary"}}</button>
+      <button type="button" data-action="copy-script"><i class="fa-solid fa-copy"></i> {{localize "DDBLI.CB.CopyScript"}}</button>
+    </div>
+  </section>
+
+  <section class="ddbli-panel-section">
+    <h3>{{localize "DDBLI.CB.Step2Title"}}</h3>
+    <p>{{localize "DDBLI.CB.Step2Text"}}</p>
+    <input type="file" name="file" accept=".json,application/json">
+  </section>
+
+  {{#if hasData}}
+  <section class="ddbli-panel-section">
+    <h3>{{localize "DDBLI.CB.Step3Title"}}</h3>
+    <ul class="ddbli-cb-books">
+      {{#each books}}
+      <li class="ddbli-cb-book{{#if this.checked}} ddbli-selected{{/if}}{{#if this.empty}} ddbli-cb-empty{{/if}}" data-action="toggle-book" data-book-id="{{this.id}}">
+        <i class="fa-solid {{#if this.checked}}fa-square-check{{else}}fa-square{{/if}}"></i>
+        <strong>{{this.name}}</strong>
+        <span class="ddbli-cb-counts">{{this.monsters}} / {{this.spells}} / {{this.items}} / {{this.classesFeats}}</span>
+      </li>
+      {{/each}}
+    </ul>
+    <p class="ddbli-portrait-hint">{{localize "DDBLI.CB.CountsHint"}}</p>
+    <label class="ddbli-cb-replace"><input type="checkbox" name="replace" {{#if replaceExisting}}checked{{/if}}> {{localize "DDBLI.CB.Replace"}}</label>
+    <button type="button" class="ddbli-sync-selected-btn" data-action="build" {{#unless selectedCount}}disabled{{/unless}}>
+      <i class="fa-solid fa-hammer"></i> {{localize "DDBLI.CB.Build"}}{{#if selectedCount}} ({{selectedCount}}){{/if}}
+    </button>
+  </section>
+  {{/if}}
+
+  <p class="ddbli-result-line ddbli-cb-status">{{status}}</p>
+</form>

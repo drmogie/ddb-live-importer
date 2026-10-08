@@ -247,3 +247,14 @@
   font-style: italic;
   color: var(--color-text-dark-secondary, #777);
 }
+
+/* Compendium Builder */
+.ddbli-cb-types { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.4rem 0; }
+.ddbli-cb-titles textarea { width: 100%; }
+.ddbli-cb-buttons { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.ddbli-cb-books { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; }
+.ddbli-cb-book { display: flex; gap: 0.5rem; align-items: center; padding: 0.25rem 0.4rem; cursor: pointer; border-radius: 4px; }
+.ddbli-cb-book:hover { background: rgba(255, 255, 255, 0.08); }
+.ddbli-cb-book.ddbli-cb-empty { opacity: 0.5; }
+.ddbli-cb-counts { margin-left: auto; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.ddbli-cb-replace { display: block; margin: 0.5rem 0; }

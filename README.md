@@ -96,6 +96,25 @@ access) gets view-only (Observer). This keeps a player's in-session edits
 from getting silently overwritten by the next sync. GMs are never affected
 by this -- Foundry always treats GM users as full owners of everything.
 
+## Compendium Builder
+
+Builds world compendiums from the D&D Beyond books you own. One pack per
+book, per type: Monsters, Spells, Items, and Classes & Feats.
+
+1. In module settings, click **Build Compendiums From My Books**.
+2. Pick the types. Open your D&D Beyond Library and click **OWNED**.
+3. Click **Copy Script**. In that tab press F12, open Console, paste, Enter.
+4. The script reads your owned books slowly, then downloads a JSON file.
+5. Back in Foundry, pick the file, tick the books, and click **Build**.
+
+Notes:
+- No token is saved. The script uses your own login in your own tab.
+- Content you do not own is skipped. D&D Beyond sends it to the shop.
+- Books are matched by name. You can type book names in the box instead.
+- Spells and items keep their rules text as descriptions. Activities and
+  effects are not built.
+- Subclasses are not read yet.
+
 ## Changelog
 
 - **2026.09.27.14** -- Split the Sync Panel into two windows, expanded the
